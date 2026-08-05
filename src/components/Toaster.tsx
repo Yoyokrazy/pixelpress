@@ -45,7 +45,7 @@ export function Toaster({
 		<div
 			aria-live="polite"
 			aria-atomic="false"
-			className="pointer-events-none fixed inset-x-0 top-16 z-50 flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6"
+			className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:left-0 sm:items-start sm:p-6"
 		>
 			{toasts.map((toast) => {
 				const style = STYLES[toast.kind];

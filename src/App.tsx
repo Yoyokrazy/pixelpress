@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ImagesToPdfView } from './components/ImagesToPdfView';
 import { PdfToImagesView } from './components/PdfToImagesView';
+import { PdfToolboxView } from './components/PdfToolboxView';
 import { Toaster } from './components/Toaster';
 import { IconButton } from './components/Button';
 import {
 	IconFilePdf,
 	IconGithub,
 	IconImage,
+	IconLayers,
 	IconMonitor,
 	IconMoon,
 	IconSun,
@@ -14,25 +16,49 @@ import {
 import { useTheme } from './hooks/useTheme';
 import { useToasts, type ToastKind } from './hooks/useToasts';
 
-type TabId = 'images-to-pdf' | 'pdf-to-images';
+type TabId = 'images-to-pdf' | 'pdf-to-images' | 'toolbox';
 
-const TABS: Array<{ id: TabId; label: string; hint: string }> = [
-	{ id: 'images-to-pdf', label: 'Images → PDF', hint: 'Combine images into one document' },
-	{ id: 'pdf-to-images', label: 'PDF → Images', hint: 'Export pages as PNG, JPEG or WebP' },
+const TABS: Array<{ id: TabId; label: string; short: string; hint: string }> = [
+	{
+		id: 'images-to-pdf',
+		label: 'Images → PDF',
+		short: 'PDF',
+		hint: 'Combine images into one document',
+	},
+	{
+		id: 'pdf-to-images',
+		label: 'PDF → Images',
+		short: 'IMG',
+		hint: 'Export pages as PNG, JPEG or WebP',
+	},
+	{ id: 'toolbox', label: 'Toolbox', short: 'TOOLS', hint: 'Merge, split and organise PDFs' },
 ];
 
+const TAB_IDS = TABS.map((entry) => entry.id);
 const TAB_STORAGE_KEY = 'pixelpress:tab';
+
+function isTabId(value: string | null): value is TabId {
+	return value !== null && (TAB_IDS as string[]).includes(value);
+}
 
 export default function App() {
 	const { theme, cycleTheme } = useTheme();
 	const { toasts, push, dismiss } = useToasts();
 	const [tab, setTab] = useState<TabId>(() => {
-		const stored = localStorage.getItem(TAB_STORAGE_KEY);
-		return stored === 'pdf-to-images' ? 'pdf-to-images' : 'images-to-pdf';
+		try {
+			const stored = localStorage.getItem(TAB_STORAGE_KEY);
+			return isTabId(stored) ? stored : 'images-to-pdf';
+		} catch {
+			return 'images-to-pdf';
+		}
 	});
 
 	useEffect(() => {
-		localStorage.setItem(TAB_STORAGE_KEY, tab);
+		try {
+			localStorage.setItem(TAB_STORAGE_KEY, tab);
+		} catch {
+			// Storage can be blocked; the tab still works for this session.
+		}
 	}, [tab]);
 
 	const notify = useCallback(
@@ -42,7 +68,7 @@ export default function App() {
 		[push],
 	);
 
-	// Keyboard shortcuts: 1/2 switch tabs, D toggles theme.
+	// Keyboard shortcuts: 1/2/3 switch tabs, D cycles the theme.
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
 			const target = event.target as HTMLElement | null;
@@ -54,10 +80,9 @@ export default function App() {
 			if (typing || event.metaKey || event.ctrlKey || event.altKey) {
 				return;
 			}
-			if (event.key === '1') {
-				setTab('images-to-pdf');
-			} else if (event.key === '2') {
-				setTab('pdf-to-images');
+			const index = Number.parseInt(event.key, 10);
+			if (index >= 1 && index <= TABS.length) {
+				setTab(TABS[index - 1].id);
 			} else if (event.key.toLowerCase() === 'd') {
 				cycleTheme();
 			}
@@ -101,9 +126,19 @@ export default function App() {
 						</div>
 					</div>
 
-					<nav className="ml-auto flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-900">
+					<nav
+						role="tablist"
+						aria-label="Conversion tools"
+						className="ml-auto flex rounded-xl border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-900"
+					>
 						{TABS.map((entry, index) => {
 							const active = entry.id === tab;
+							const Icon =
+								entry.id === 'images-to-pdf'
+									? IconImage
+									: entry.id === 'pdf-to-images'
+										? IconFilePdf
+										: IconLayers;
 							return (
 								<button
 									key={entry.id}
@@ -112,19 +147,15 @@ export default function App() {
 									aria-selected={active}
 									title={`${entry.hint} (${index + 1})`}
 									onClick={() => setTab(entry.id)}
-									className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition sm:text-sm ${
+									className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 sm:text-sm ${
 										active
 											? 'bg-white text-brand-700 shadow-sm dark:bg-slate-950 dark:text-brand-300'
 											: 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
 									}`}
 								>
-									{entry.id === 'images-to-pdf' ? (
-										<IconImage className="size-4" />
-									) : (
-										<IconFilePdf className="size-4" />
-									)}
+									<Icon className="size-4" />
 									<span className="hidden sm:inline">{entry.label}</span>
-									<span className="sm:hidden">{entry.id === 'images-to-pdf' ? 'PDF' : 'IMG'}</span>
+									<span className="sm:hidden">{entry.short}</span>
 								</button>
 							);
 						})}
@@ -149,18 +180,16 @@ export default function App() {
 			</header>
 
 			<main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
-				{tab === 'images-to-pdf' ? (
-					<ImagesToPdfView notify={notify} />
-				) : (
-					<PdfToImagesView notify={notify} />
-				)}
+				{tab === 'images-to-pdf' ? <ImagesToPdfView notify={notify} /> : null}
+				{tab === 'pdf-to-images' ? <PdfToImagesView notify={notify} /> : null}
+				{tab === 'toolbox' ? <PdfToolboxView notify={notify} /> : null}
 			</main>
 
 			<footer className="border-t border-slate-200 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 dark:border-slate-800 dark:text-slate-400">
 				<p>
 					Everything runs locally — your files never leave this device. Shortcuts:{' '}
-					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">1</kbd>/
-					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">2</kbd> to switch
+					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">1</kbd>–
+					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">3</kbd> to switch
 					tabs, <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">D</kbd> for
 					theme.
 				</p>
