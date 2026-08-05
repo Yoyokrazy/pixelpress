@@ -1,9 +1,13 @@
 name: Deploy to GitHub Pages
 
-# Manual only: GitHub Pages is unavailable for private repositories on the
-# free plan. Make the repository public (or upgrade), enable Pages with
-# "GitHub Actions" as the source, then run this workflow.
+# Runs automatically on push, but only once Pages is actually available for
+# this repository. GitHub Pages requires either a public repository or a paid
+# plan, so the `check` job probes the Pages API first and the rest of the
+# workflow skips cleanly when it is not yet enabled. Nothing needs changing
+# here after enabling Pages — the next push simply deploys.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +20,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    name: Check Pages availability
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.probe.outputs.enabled }}
+    steps:
+      - id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Pages is enabled - continuing with the deployment."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled for this repository, so the deployment was skipped. Enable it under Settings > Pages with GitHub Actions as the source; the next push will then deploy automatically."
+          fi
+
   build:
+    name: Build site
+    needs: check
+    if: needs.check.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +70,7 @@ jobs:
           path: dist
 
   deploy:
+    name: Deploy site
     needs: build
     runs-on: ubuntu-latest
     environment:

@@ -111,17 +111,16 @@ testable in isolation from the UI.
 
 ## Deployment
 
-Pushing to `main` runs CI: typecheck, lint, test and build.
+Pushing to `main` runs CI (typecheck, lint, test, build) and then the
+**Deploy to GitHub Pages** workflow.
 
-A separate **Deploy to GitHub Pages** workflow is included but runs on manual dispatch only,
-because Pages is not available for private repositories on the free plan. To publish the app:
+The deploy workflow probes the Pages API first and skips cleanly if Pages is not enabled,
+so it is safe to leave switched on. GitHub Pages requires a public repository or a paid
+plan; once either is true, enable it under **Settings → Pages → Build and deployment →
+Source: GitHub Actions** and the next push deploys automatically. No workflow changes needed.
 
-1. Make the repository public, or upgrade the plan
-2. **Settings → Pages → Build and deployment → Source: GitHub Actions**
-3. Run the **Deploy to GitHub Pages** workflow from the Actions tab
-
-The workflow sets `BASE_PATH` so the bundle resolves assets from `/<repo>/`. The build is fully
-static, so any static host (Netlify, Vercel, S3, a plain nginx directory) also works —
+The workflow sets `BASE_PATH` so the bundle resolves assets from `/<repo>/`. The build is
+fully static, so any static host (Netlify, Vercel, S3, a plain nginx directory) also works —
 just serve the `dist/` folder.
 
 ---
