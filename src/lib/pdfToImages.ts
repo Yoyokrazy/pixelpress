@@ -54,7 +54,6 @@ export async function openPdf(data: ArrayBuffer, password?: string): Promise<PDF
 		data: new Uint8Array(data.slice(0)),
 		password,
 		useSystemFonts: true,
-		isEvalSupported: false,
 	});
 
 	task.onPassword = (_updatePassword: (value: string) => void, reason: number) => {
@@ -86,11 +85,16 @@ function isPasswordException(error: unknown): boolean {
 	);
 }
 
+/** Release a document and its worker. */
+export async function closePdf(pdf: PDFDocumentProxy): Promise<void> {
+	await pdf.loadingTask.destroy();
+}
+
 export async function readPdfPageCount(file: File, password?: string): Promise<number> {
 	const buffer = await file.arrayBuffer();
 	const pdf = await openPdf(buffer, password);
 	const pageCount = pdf.numPages;
-	await pdf.destroy();
+	await closePdf(pdf);
 	return pageCount;
 }
 
@@ -129,7 +133,7 @@ export async function rasterizePdfs(
 			}
 			if (pageNumbers.length === 0) {
 				errors.push(`${request.file.name}: no pages matched the selected range`);
-				await pdf.destroy();
+				await closePdf(pdf);
 				continue;
 			}
 			plans.push({ request, pdf, pageNumbers });
@@ -216,7 +220,7 @@ export async function rasterizePdfs(
 			}
 		}
 	} finally {
-		await Promise.all(plans.map((plan) => plan.pdf.destroy().catch(() => undefined)));
+		await Promise.all(plans.map((plan) => closePdf(plan.pdf).catch(() => undefined)));
 	}
 
 	return { pages, errors };
@@ -248,7 +252,7 @@ export async function renderPdfThumbnail(
 		const blob = await canvasToBlob(canvas, 'image/jpeg', 0.8);
 		return { url: URL.createObjectURL(blob), width: canvas.width, height: canvas.height };
 	} finally {
-		await pdf.destroy();
+		await closePdf(pdf);
 	}
 }
 

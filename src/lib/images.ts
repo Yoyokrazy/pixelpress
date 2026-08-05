@@ -1,4 +1,4 @@
-import type { ImageItem, Rotation } from './types';
+import type { ImageItem } from './types';
 import { rotatedSize } from './layout';
 
 /** Formats the app accepts as conversion input. */
