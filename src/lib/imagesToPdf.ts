@@ -194,7 +194,7 @@ function autoPageSize(
 }
 
 function applyMetadata(pdf: PDFDocument, options: PdfBuildOptions): void {
-	pdf.setProducer('PixelPress');
+	// pdf-lib always stamps its own /Producer on save, so only /Creator is ours.
 	pdf.setCreator('PixelPress · https://github.com/Yoyokrazy/pixelpress');
 	pdf.setCreationDate(new Date());
 	pdf.setModificationDate(new Date());

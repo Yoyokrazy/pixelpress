@@ -451,7 +451,7 @@ export function ImagesToPdfView({ notify }: ImagesToPdfViewProps) {
 					</div>
 				</Section>
 
-				<div className="sticky bottom-4 flex flex-col gap-2">
+				<div className="sticky bottom-0 -mx-1 flex flex-col gap-2 rounded-t-2xl border-t border-slate-200 bg-slate-50/95 px-1 pt-3 pb-3 backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
 					<Button
 						variant="primary"
 						size="lg"

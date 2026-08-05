@@ -1,13 +1,39 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pixelpress</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+		<title>PixelPress · Convert images to PDF and PDF to images</title>
+		<meta
+			name="description"
+			content="Combine PNG, JPEG and WebP images into a PDF, or export PDF pages as images. Fast, private and entirely in your browser."
+		/>
+		<meta name="theme-color" content="#4f46e5" />
+		<meta property="og:title" content="PixelPress" />
+		<meta
+			property="og:description"
+			content="Convert images to PDF and PDF to images, entirely in your browser."
+		/>
+		<meta property="og:type" content="website" />
+		<script>
+			// Apply the saved theme before first paint to avoid a flash of the wrong colours.
+			(() => {
+				try {
+					const stored = localStorage.getItem('pixelpress:theme');
+					const dark =
+						stored === 'dark' ||
+						((stored === null || stored === 'system') &&
+							matchMedia('(prefers-color-scheme: dark)').matches);
+					document.documentElement.classList.toggle('dark', dark);
+				} catch {
+					/* Storage can be blocked; the app applies the theme on mount anyway. */
+				}
+			})();
+		</script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
 </html>

@@ -24,6 +24,8 @@ export function stripExtension(fileName: string): string {
 /** Remove characters that are unsafe in filenames across platforms. */
 export function sanitizeFileName(name: string, fallback = 'pixelpress'): string {
 	const cleaned = name
+		// Control characters are deliberately matched: they are illegal in filenames.
+		// oxlint-disable-next-line no-control-regex
 		.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
 		.replace(/\s+/g, ' ')
 		.trim()
@@ -130,7 +132,11 @@ export function formatDuration(ms: number): string {
 	return seconds < 60 ? `${seconds.toFixed(1)} s` : `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
 }
 
-/** Longest shared filename prefix, used to name batch downloads sensibly. */
+/**
+ * Longest shared filename prefix, used to name batch downloads sensibly.
+ * Trailing separators and partial sequence numbers are trimmed so
+ * `scan-001, scan-002` yields `scan` rather than `scan-00`.
+ */
 export function commonPrefix(names: readonly string[]): string {
 	if (names.length === 0) {
 		return '';
@@ -146,5 +152,14 @@ export function commonPrefix(names: readonly string[]): string {
 			break;
 		}
 	}
-	return prefix.replace(/[\s._-]+$/, '');
+
+	if (names.length === 1) {
+		return prefix.trim();
+	}
+
+	const trimmed = prefix
+		.replace(/[\s._-]+$/, '')
+		.replace(/\d+$/, '')
+		.replace(/[\s._-]+$/, '');
+	return trimmed === '' ? prefix.trim() : trimmed;
 }
