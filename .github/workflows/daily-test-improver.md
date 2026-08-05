@@ -67,9 +67,13 @@ safe-outputs:
     labels: [automation, testing]
     max: 2
     protected-files: fallback-to-issue
+    # The 4 KB default is smaller than a single realistic test file, so useful
+    # contributions were being downgraded to review issues instead of PRs.
+    max-patch-size: 128
   push-to-pull-request-branch:
     target: "*"
     required-title-prefix: "[test-improver] "
+    max-patch-size: 128
     max: 4
   create-issue:
     title-prefix: "[test-improver] "
