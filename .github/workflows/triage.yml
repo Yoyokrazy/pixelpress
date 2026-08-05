@@ -158,7 +158,9 @@ jobs:
         if: steps.classify.outputs.skip == 'false'
         uses: actions/github-script@v9
         env:
-          TRIAGE_RESULT: ${{ steps.classify.outputs.result }}
+          # toJSON quotes the value; without it YAML reads a leading "{" as a
+          # flow mapping and the JSON never reaches the script intact.
+          TRIAGE_RESULT: ${{ toJSON(steps.classify.outputs.result) }}
           ELIGIBLE: ${{ steps.classify.outputs.eligible }}
           ASSIGN_OUTCOME: ${{ steps.assign.outputs.outcome }}
         with:
