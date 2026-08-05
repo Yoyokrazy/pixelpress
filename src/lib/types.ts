@@ -15,6 +15,12 @@ export interface ImageItem {
 	height: number;
 	/** Clockwise rotation applied when drawing into the PDF. */
 	rotation: Rotation;
+	/**
+	 * EXIF orientation of the source file. Anything other than 1 means the
+	 * browser rotated the image on decode, so the raw bytes cannot be embedded
+	 * directly — pdf-lib does not honour EXIF.
+	 */
+	exifOrientation: number;
 	/** MIME type reported by the browser, normalised where the browser is vague. */
 	type: string;
 }

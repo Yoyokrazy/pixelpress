@@ -31,7 +31,7 @@ import {
 	type SplitMode,
 	type SplitOptions,
 } from '../lib/pdfTools';
-import { describeError, renderPdfThumbnail } from '../lib/pdfToImages';
+import { describeError, renderPdfThumbnails } from '../lib/pdfToImages';
 import { downloadAsZip, downloadBlob } from '../lib/download';
 import { commonPrefix, formatBytes, stripExtension } from '../lib/format';
 import { DropZone } from './DropZone';
@@ -171,43 +171,44 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 		if (mode !== 'organise' || !activeDoc) {
 			return;
 		}
-		let cancelled = false;
+
+		const controller = new AbortController();
 		const created: string[] = [];
+		let cancelled = false;
 
-		const load = async () => {
-			setPages(
-				Array.from({ length: activeDoc.pageCount }, (_, index) => ({
-					id: `${activeDoc.id}-p${index + 1}`,
-					pageNumber: index + 1,
-					rotation: 0 as Rotation,
-					deleted: false,
-				})),
-			);
+		setPages(
+			Array.from({ length: activeDoc.pageCount }, (_, index) => ({
+				id: `${activeDoc.id}-p${index + 1}`,
+				pageNumber: index + 1,
+				rotation: 0 as Rotation,
+				deleted: false,
+			})),
+		);
 
-			for (let pageNumber = 1; pageNumber <= activeDoc.pageCount; pageNumber += 1) {
+		void renderPdfThumbnails(
+			activeDoc.file,
+			220,
+			(pageNumber, url) => {
+				// The effect may have been torn down between thumbnails.
 				if (cancelled) {
-					break;
+					URL.revokeObjectURL(url);
+					return;
 				}
-				try {
-					const { url } = await renderPdfThumbnail(activeDoc.file, pageNumber, 220);
-					created.push(url);
-					if (cancelled) {
-						break;
-					}
-					setPages((current) =>
-						current.map((page) =>
-							page.pageNumber === pageNumber ? { ...page, thumbnailUrl: url } : page,
-						),
-					);
-				} catch {
-					// A missing thumbnail is not fatal; the tile falls back to a placeholder.
-				}
-			}
-		};
+				created.push(url);
+				setPages((current) =>
+					current.map((page) =>
+						page.pageNumber === pageNumber ? { ...page, thumbnailUrl: url } : page,
+					),
+				);
+			},
+			controller.signal,
+		).catch(() => {
+			// Thumbnails are decorative; failures leave placeholders in place.
+		});
 
-		void load();
 		return () => {
 			cancelled = true;
+			controller.abort();
 			for (const url of created) {
 				URL.revokeObjectURL(url);
 			}

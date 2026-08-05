@@ -1,5 +1,6 @@
 import type { ImageItem } from './types';
 import { rotatedSize } from './layout';
+import { DEFAULT_ORIENTATION, readExifOrientation } from './exif';
 
 /** Formats the app accepts as conversion input. */
 export const ACCEPTED_IMAGE_TYPES = [
@@ -64,7 +65,7 @@ export async function readImageSize(
 ): Promise<{ width: number; height: number }> {
 	if (typeof createImageBitmap === 'function' && file.type !== 'image/svg+xml') {
 		try {
-			const bitmap = await createImageBitmap(file);
+			const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
 			const size = { width: bitmap.width, height: bitmap.height };
 			bitmap.close();
 			return size;
@@ -110,7 +111,10 @@ export async function loadImageItems(
 
 		const previewUrl = URL.createObjectURL(file);
 		try {
-			const { width, height } = await readImageSize(file, previewUrl);
+			const [{ width, height }, exifOrientation] = await Promise.all([
+				readImageSize(file, previewUrl),
+				readExifOrientation(file),
+			]);
 			items.push({
 				id: nextId('img'),
 				file,
@@ -121,6 +125,7 @@ export async function loadImageItems(
 				width,
 				height,
 				rotation: 0,
+				exifOrientation,
 				type: normaliseImageType(file),
 			});
 		} catch (error) {
@@ -166,8 +171,11 @@ export async function prepareImageForPdf(
 	const needsDownscale =
 		options.maxDimension > 0 && Math.max(item.width, item.height) > options.maxDimension;
 	const needsRotation = item.rotation !== 0;
+	// The browser bakes EXIF orientation into its decode but pdf-lib does not,
+	// so an EXIF-rotated file must go through the canvas to be normalised.
+	const isExifRotated = item.exifOrientation !== DEFAULT_ORIENTATION;
 
-	if (passthroughType && !options.compress && !needsDownscale && !needsRotation) {
+	if (passthroughType && !options.compress && !needsDownscale && !needsRotation && !isExifRotated) {
 		const buffer = await item.file.arrayBuffer();
 		return {
 			bytes: new Uint8Array(buffer),
@@ -223,7 +231,8 @@ type Drawable = ImageBitmap | HTMLImageElement;
 async function decodeToDrawable(file: File): Promise<Drawable> {
 	if (typeof createImageBitmap === 'function' && file.type !== 'image/svg+xml') {
 		try {
-			return await createImageBitmap(file);
+			// `from-image` normalises EXIF rotation into the bitmap itself.
+			return await createImageBitmap(file, { imageOrientation: 'from-image' });
 		} catch {
 			// Fall through to the <img> decoder.
 		}

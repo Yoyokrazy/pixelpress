@@ -219,6 +219,14 @@ export async function rasterizePdfs(
 				onProgress?.(completed, total, `${plan.request.file.name} · page ${pageNumber}`);
 			}
 		}
+	} catch (error) {
+		// Nothing downstream will ever see these pages, so release the blobs
+		// they pin rather than stranding them for the life of the document.
+		for (const page of pages) {
+			URL.revokeObjectURL(page.url);
+		}
+		pages.length = 0;
+		throw error;
 	} finally {
 		await Promise.all(plans.map((plan) => closePdf(plan.pdf).catch(() => undefined)));
 	}
@@ -226,17 +234,14 @@ export async function rasterizePdfs(
 	return { pages, errors };
 }
 
-/** Render a single small preview of a PDF page, used for thumbnails. */
-export async function renderPdfThumbnail(
-	file: File,
+/** Render one page of an already-open document into a small preview blob. */
+async function renderThumbnailFromPage(
+	pdf: PDFDocumentProxy,
 	pageNumber: number,
 	maxEdge: number,
-	password?: string,
 ): Promise<{ url: string; width: number; height: number }> {
-	const buffer = await file.arrayBuffer();
-	const pdf = await openPdf(buffer, password);
+	const page = await pdf.getPage(pageNumber);
 	try {
-		const page = await pdf.getPage(pageNumber);
 		const base = page.getViewport({ scale: 1 });
 		const scale = Math.min(2, maxEdge / Math.max(base.width, base.height));
 		const viewport = page.getViewport({ scale });
@@ -248,9 +253,65 @@ export async function renderPdfThumbnail(
 		context.fillStyle = '#ffffff';
 		context.fillRect(0, 0, canvas.width, canvas.height);
 		await page.render({ canvasContext: context, canvas, viewport }).promise;
-		page.cleanup();
 		const blob = await canvasToBlob(canvas, 'image/jpeg', 0.8);
 		return { url: URL.createObjectURL(blob), width: canvas.width, height: canvas.height };
+	} finally {
+		page.cleanup();
+	}
+}
+
+/** Render a single small preview of a PDF page, used for one-off thumbnails. */
+export async function renderPdfThumbnail(
+	file: File,
+	pageNumber: number,
+	maxEdge: number,
+	password?: string,
+): Promise<{ url: string; width: number; height: number }> {
+	const buffer = await file.arrayBuffer();
+	const pdf = await openPdf(buffer, password);
+	try {
+		return await renderThumbnailFromPage(pdf, pageNumber, maxEdge);
+	} finally {
+		await closePdf(pdf);
+	}
+}
+
+/**
+ * Render previews for many pages of one document. The file is parsed once and
+ * a single worker is reused, which matters a great deal for large PDFs. Each
+ * thumbnail is handed to `onThumbnail` as soon as it is ready so the UI can
+ * fill in progressively; URLs produced after an abort are revoked immediately
+ * rather than leaked.
+ */
+export async function renderPdfThumbnails(
+	file: File,
+	maxEdge: number,
+	onThumbnail: (pageNumber: number, url: string) => void,
+	signal?: AbortSignal,
+	password?: string,
+): Promise<void> {
+	const buffer = await file.arrayBuffer();
+	if (signal?.aborted) {
+		return;
+	}
+
+	const pdf = await openPdf(buffer, password);
+	try {
+		for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+			if (signal?.aborted) {
+				return;
+			}
+			try {
+				const { url } = await renderThumbnailFromPage(pdf, pageNumber, maxEdge);
+				if (signal?.aborted) {
+					URL.revokeObjectURL(url);
+					return;
+				}
+				onThumbnail(pageNumber, url);
+			} catch {
+				// A missing thumbnail is not fatal; the tile keeps its placeholder.
+			}
+		}
 	} finally {
 		await closePdf(pdf);
 	}
