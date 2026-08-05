@@ -23,8 +23,15 @@ on:
     - id: check
       env: 
         GH_TOKEN: ${{ github.token }}
+        HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN != '' }}
       run: |
         MAX_OPEN_PRS=3
+        # Skip quietly rather than failing the run when the engine token is
+        # absent, so an unconfigured repository does not collect a weekly red X.
+        if [[ "$HAS_COPILOT_TOKEN" != "true" ]]; then
+          echo "::notice::COPILOT_GITHUB_TOKEN is not configured, so this agentic workflow was skipped. Add a fine-grained PAT with Copilot Requests: Read to enable it."
+          exit 1
+        fi
         if [[ "$GITHUB_EVENT_NAME" != "schedule" ]]; then exit 0; fi
         COUNT=$(gh pr list --repo ${{ github.repository }} --state open --search 'in:title "[test-improver]"' --json number --jq 'length' 2>/dev/null || echo 0)
         [[ "$COUNT" -lt "$MAX_OPEN_PRS" ]]

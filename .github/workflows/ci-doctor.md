@@ -12,9 +12,20 @@ on:
       - completed
     branches:
       - main
+  steps:
+    - id: check
+      env:
+        HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN != '' }}
+      run: |
+        # Skip quietly rather than failing when the engine token is absent, so
+        # an unconfigured repository does not collect a red X on every failure.
+        if [[ "$HAS_COPILOT_TOKEN" != "true" ]]; then
+          echo "::notice::COPILOT_GITHUB_TOKEN is not configured, so the CI Failure Doctor was skipped. Add a fine-grained PAT with Copilot Requests: Read to enable it."
+          exit 1
+        fi
 
 # Only trigger for failures - check in the workflow body
-if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+if: ${{ github.event.workflow_run.conclusion == 'failure' && needs.pre_activation.outputs.check_result == 'success' }}
 
 permissions: read-all
 
