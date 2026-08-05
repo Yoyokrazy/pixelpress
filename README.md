@@ -71,6 +71,7 @@ Then open the URL Vite prints (usually <http://localhost:5173>).
 | `npm run preview`    | Serve the production bundle locally       |
 | `npm run test`       | Run the unit test suite once              |
 | `npm run test:watch` | Run tests in watch mode                   |
+| `npm run test:coverage` | Run tests with coverage and enforce thresholds |
 | `npm run typecheck`  | Typecheck without emitting                |
 | `npm run lint`       | Lint the source                           |
 
