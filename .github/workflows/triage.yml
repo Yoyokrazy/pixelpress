@@ -172,6 +172,7 @@ jobs:
 
             const number = Number('${{ steps.classify.outputs.issue_number }}');
             const raw = process.env.TRIAGE_RESULT ?? '';
+            core.debug(`Raw triage payload: ${raw}`);
             let result;
             try {
               result = JSON.parse(raw);
@@ -180,7 +181,9 @@ jobs:
               return;
             }
             if (!Array.isArray(result?.labels)) {
-              core.setFailed('Triage result was malformed; expected a labels array.');
+              core.setFailed(
+                `Triage result was malformed; expected a labels array but got ${JSON.stringify(raw).slice(0, 200)}.`,
+              );
               return;
             }
 
