@@ -142,9 +142,11 @@ export default function App() {
 							return (
 								<button
 									key={entry.id}
+									id={`tab-${entry.id}`}
 									type="button"
 									role="tab"
 									aria-selected={active}
+									aria-controls={`tabpanel-${entry.id}`}
 									title={`${entry.hint} (${index + 1})`}
 									onClick={() => setTab(entry.id)}
 									className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 sm:text-sm ${
@@ -184,13 +186,23 @@ export default function App() {
 					All three views stay mounted so switching tabs never discards the
 					files, ordering and previews the user has already set up.
 				*/}
-				<div role="tabpanel" aria-label="Images to PDF" hidden={tab !== 'images-to-pdf'}>
+				<div
+					id="tabpanel-images-to-pdf"
+					role="tabpanel"
+					aria-labelledby="tab-images-to-pdf"
+					hidden={tab !== 'images-to-pdf'}
+				>
 					<ImagesToPdfView notify={notify} />
 				</div>
-				<div role="tabpanel" aria-label="PDF to images" hidden={tab !== 'pdf-to-images'}>
+				<div
+					id="tabpanel-pdf-to-images"
+					role="tabpanel"
+					aria-labelledby="tab-pdf-to-images"
+					hidden={tab !== 'pdf-to-images'}
+				>
 					<PdfToImagesView notify={notify} />
 				</div>
-				<div role="tabpanel" aria-label="PDF toolbox" hidden={tab !== 'toolbox'}>
+				<div id="tabpanel-toolbox" role="tabpanel" aria-labelledby="tab-toolbox" hidden={tab !== 'toolbox'}>
 					<PdfToolboxView notify={notify} />
 				</div>
 			</main>
