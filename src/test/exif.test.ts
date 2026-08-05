@@ -116,4 +116,69 @@ describe('readExifOrientation', () => {
 		]);
 		await expect(readExifOrientation(truncated)).resolves.toBe(DEFAULT_ORIENTATION);
 	});
+
+	it('returns default when TIFF magic 0x002a is wrong', async () => {
+		// Build a JPEG with an APP1/Exif block that has an invalid TIFF magic word.
+		const tiff = [
+			0x49, 0x49, // little-endian marker
+			0x00, 0x00, // WRONG magic (should be 0x002a)
+			0x08, 0x00, 0x00, 0x00, // IFD offset
+			0x01, 0x00, // one entry
+			0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, // orientation=6
+			0x00, 0x00, 0x00, 0x00, // next IFD = 0
+		];
+		const exif = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+		const length = exif.length + 2;
+		const bytes = [
+			0xff, 0xd8, // SOI
+			0xff, 0xe1, // APP1
+			(length >> 8) & 0xff, length & 0xff,
+			...exif,
+			0xff, 0xda, 0x00, 0x02, // SOS
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(DEFAULT_ORIENTATION);
+	});
+
+	it('returns default when the IFD offset points beyond the buffer', async () => {
+		// TIFF header with IFD offset set to a huge value.
+		const tiff = [
+			0x49, 0x49, // little-endian
+			0x2a, 0x00, // magic
+			0xff, 0xff, 0xff, 0x7f, // IFD offset = way past end
+		];
+		const exif = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+		const length = exif.length + 2;
+		const bytes = [
+			0xff, 0xd8,
+			0xff, 0xe1,
+			(length >> 8) & 0xff, length & 0xff,
+			...exif,
+			0xff, 0xda, 0x00, 0x02,
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(DEFAULT_ORIENTATION);
+	});
+
+	it('returns default when the IFD entry list does not contain orientation', async () => {
+		// Build a TIFF IFD with one entry that has a different tag (not 0x0112).
+		const tiff = [
+			0x49, 0x49, // LE
+			0x2a, 0x00, // magic
+			0x08, 0x00, 0x00, 0x00, // IFD offset = 8
+			0x01, 0x00, // one IFD entry
+			0x00, 0x01, // tag = 0x0100 (ImageWidth), NOT orientation
+			0x03, 0x00, 0x01, 0x00, 0x00, 0x00,
+			0x40, 0x00, 0x00, 0x00, // value = 64
+			0x00, 0x00, 0x00, 0x00, // next IFD = 0
+		];
+		const exif = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+		const length = exif.length + 2;
+		const bytes = [
+			0xff, 0xd8,
+			0xff, 0xe1,
+			(length >> 8) & 0xff, length & 0xff,
+			...exif,
+			0xff, 0xda, 0x00, 0x02,
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(DEFAULT_ORIENTATION);
+	});
 });
