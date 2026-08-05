@@ -1,8 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Manual only: GitHub Pages is unavailable for private repositories on the
+# free plan. Make the repository public (or upgrade), enable Pages with
+# "GitHub Actions" as the source, then run this workflow.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
