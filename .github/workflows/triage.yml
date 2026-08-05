@@ -81,7 +81,9 @@ jobs:
             core.setOutput('skip', 'false');
             core.setOutput('eligible', String(result.autoFixEligible));
             core.setOutput('issue_number', String(number));
-            core.setOutput('result', JSON.stringify(result));
+            // Named "triage" rather than "result": github-script publishes its
+            // own "result" output and would overwrite it.
+            core.setOutput('triage', JSON.stringify(result));
 
       - name: Ask Copilot to attempt a fix
         id: assign
@@ -160,7 +162,7 @@ jobs:
         env:
           # toJSON quotes the value; without it YAML reads a leading "{" as a
           # flow mapping and the JSON never reaches the script intact.
-          TRIAGE_RESULT: ${{ toJSON(steps.classify.outputs.result) }}
+          TRIAGE_RESULT: ${{ toJSON(steps.classify.outputs.triage) }}
           ELIGIBLE: ${{ steps.classify.outputs.eligible }}
           ASSIGN_OUTCOME: ${{ steps.assign.outputs.outcome }}
         with:
@@ -169,7 +171,19 @@ jobs:
               await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/triage.mjs`);
 
             const number = Number('${{ steps.classify.outputs.issue_number }}');
-            const result = JSON.parse(process.env.TRIAGE_RESULT);
+            const raw = process.env.TRIAGE_RESULT ?? '';
+            let result;
+            try {
+              result = JSON.parse(raw);
+            } catch {
+              core.setFailed(`Could not read the triage result (got ${JSON.stringify(raw.slice(0, 80))}).`);
+              return;
+            }
+            if (!Array.isArray(result?.labels)) {
+              core.setFailed('Triage result was malformed; expected a labels array.');
+              return;
+            }
+
             const assignment =
               process.env.ELIGIBLE === 'true'
                 ? process.env.ASSIGN_OUTCOME || 'unavailable'
