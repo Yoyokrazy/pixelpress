@@ -18,5 +18,22 @@ export default defineConfig({
 		globals: true,
 		setupFiles: ['./src/test/setup.ts'],
 		include: ['src/**/*.{test,spec}.{ts,tsx}'],
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'text-summary', 'json-summary', 'lcov'],
+			reportsDirectory: './coverage',
+			include: ['src/lib/**/*.ts', '.github/scripts/**/*.mjs'],
+			exclude: ['src/lib/types.ts', '**/*.d.ts', '**/*.d.mts'],
+			// Thresholds sit just below current coverage so they act as a
+			// ratchet against regressions. They are not a target: the remaining
+			// gap is mostly download.ts and pdfToImages.ts, which need canvas
+			// and the pdf.js worker and are verified in a real browser instead.
+			thresholds: {
+				statements: 60,
+				branches: 63,
+				functions: 60,
+				lines: 60,
+			},
+		},
 	},
 });

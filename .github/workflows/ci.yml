@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # Needed to post the coverage summary on pull requests.
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -35,7 +37,69 @@ jobs:
         run: npm run lint
 
       - name: Test
-        run: npm run test
+        run: npm run test:coverage
+
+      - name: Summarise coverage
+        if: always()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = './coverage/coverage-summary.json';
+            if (!fs.existsSync(path)) {
+              core.warning('No coverage summary was produced.');
+              return;
+            }
+
+            const summary = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const pct = (key) => summary.total[key].pct.toFixed(2);
+            const rows = ['statements', 'branches', 'functions', 'lines']
+              .map((key) => {
+                const { covered, total } = summary.total[key];
+                return `| ${key} | ${pct(key)}% | ${covered}/${total} |`;
+              })
+              .join('\n');
+
+            const body = [
+              '### Coverage',
+              '',
+              '| Metric | % | Covered |',
+              '| ------ | -- | ------- |',
+              rows,
+              '',
+              '_Browser-only modules (canvas and the pdf.js worker) are verified in a real browser rather than jsdom._',
+            ].join('\n');
+
+            await core.summary.addRaw(body).write();
+
+            if (context.eventName !== 'pull_request') {
+              return;
+            }
+
+            // Update the existing comment instead of adding one per run.
+            const marker = '### Coverage';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.payload.pull_request.number,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              (comment) => comment.user?.type === 'Bot' && comment.body?.startsWith(marker),
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                ...context.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
 
       - name: Build
         run: npm run build
