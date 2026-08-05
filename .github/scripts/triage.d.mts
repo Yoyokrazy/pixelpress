@@ -33,4 +33,10 @@ export declare const MIN_ACTIONABLE_BODY_LENGTH: number;
 
 export declare function triageIssue(issue: IssueInput): TriageResult;
 
-export declare function formatTriageComment(result: TriageResult): string;
+/** Outcome of the Copilot hand-off attempt. */
+export type AssignmentOutcome = 'assigned' | 'unavailable' | 'skipped';
+
+export declare function formatTriageComment(
+	result: TriageResult,
+	assignment?: AssignmentOutcome,
+): string;

@@ -3,6 +3,13 @@ name: Issue triage
 # Labels every newly filed issue and, when the issue looks actionable, asks
 # GitHub Copilot to attempt a fix. Classification lives in
 # .github/scripts/triage.mjs so it can be unit tested (src/test/triage.test.ts).
+#
+# Assigning the Copilot coding agent requires a *user* token: the default
+# GITHUB_TOKEN is a GitHub App installation token and the API rejects it with
+# "Assigning agents is not supported with GitHub App installation tokens".
+# Add a fine-grained PAT with `issues: write` as the COPILOT_ASSIGN_TOKEN
+# secret to enable the hand-off. Without it triage still labels and comments,
+# and eligible issues are left for a human.
 on:
   issues:
     types: [opened, reopened, edited]
@@ -33,11 +40,12 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const { triageIssue, formatTriageComment } =
+            const { triageIssue } =
               await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/triage.mjs`);
 
-            const number = context.payload.issue?.number
-              ?? Number(context.payload.inputs?.issue_number);
+            const number = Number(
+              context.payload.issue?.number ?? context.payload.inputs?.issue_number,
+            );
             const { data: issue } = await github.rest.issues.get({
               ...context.repo,
               issue_number: number,
@@ -45,7 +53,7 @@ jobs:
 
             if (issue.pull_request) {
               core.info('Target is a pull request, not an issue. Skipping.');
-              core.setOutput('eligible', 'false');
+              core.setOutput('skip', 'true');
               return;
             }
 
@@ -56,52 +64,50 @@ jobs:
               labels: (issue.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)),
             });
 
-            core.notice(`Issue #${number} categorised as "${result.category}" (auto-fix: ${result.autoFixEligible}).`);
+            core.notice(
+              `Issue #${number} categorised as "${result.category}" (auto-fix eligible: ${result.autoFixEligible}).`,
+            );
 
             // Drop the holding label now that a decision has been made.
-            const toApply = result.labels.filter((l) => l !== 'needs-triage');
             await github.rest.issues.addLabels({
               ...context.repo,
               issue_number: number,
-              labels: toApply,
+              labels: result.labels.filter((label) => label !== 'needs-triage'),
             });
-            await github.rest.issues.removeLabel({
-              ...context.repo,
-              issue_number: number,
-              name: 'needs-triage',
-            }).catch(() => core.debug('needs-triage was not present.'));
+            await github.rest.issues
+              .removeLabel({ ...context.repo, issue_number: number, name: 'needs-triage' })
+              .catch(() => core.debug('needs-triage was not present.'));
 
-            // Only comment once, so edits do not spam the thread.
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              ...context.repo,
-              issue_number: number,
-              per_page: 100,
-            });
-            const alreadyCommented = comments.some(
-              (c) => c.user?.type === 'Bot' && c.body?.includes('### Automated triage'),
-            );
-            if (!alreadyCommented) {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: number,
-                body: formatTriageComment(result),
-              });
-            }
-
+            core.setOutput('skip', 'false');
             core.setOutput('eligible', String(result.autoFixEligible));
             core.setOutput('issue_number', String(number));
-            core.setOutput('category', result.category);
+            core.setOutput('result', JSON.stringify(result));
 
       - name: Ask Copilot to attempt a fix
-        if: steps.classify.outputs.eligible == 'true'
+        id: assign
+        if: steps.classify.outputs.skip == 'false' && steps.classify.outputs.eligible == 'true'
+        # Never fail the run just because the agent could not be assigned; the
+        # comment step reports whatever happened.
+        continue-on-error: true
         uses: actions/github-script@v9
+        env:
+          HAS_USER_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
         with:
+          github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN || secrets.GITHUB_TOKEN }}
           script: |
             const number = Number('${{ steps.classify.outputs.issue_number }}');
 
-            // Copilot is assigned through GraphQL: it is exposed as a suggested
-            // actor rather than a normal assignable user.
-            const query = `
+            if (process.env.HAS_USER_TOKEN !== 'true') {
+              core.warning(
+                'COPILOT_ASSIGN_TOKEN is not configured, so the Copilot coding agent cannot be assigned. Add a fine-grained PAT with issues:write to enable automated fix attempts.',
+              );
+              core.setOutput('outcome', 'unavailable');
+              return;
+            }
+
+            // Copilot is exposed as a suggested actor rather than a normal
+            // assignable user, so the hand-off goes through GraphQL.
+            const { repository } = await github.graphql(`
               query($owner: String!, $name: String!, $number: Int!) {
                 repository(owner: $owner, name: $name) {
                   suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 25) {
@@ -109,38 +115,36 @@ jobs:
                   }
                   issue(number: $number) { id }
                 }
-              }`;
-
-            const { repository } = await github.graphql(query, {
-              owner: context.repo.owner,
-              name: context.repo.repo,
-              number,
-            });
+              }`,
+              { owner: context.repo.owner, name: context.repo.repo, number },
+            );
 
             const copilot = repository.suggestedActors.nodes.find(
               (node) => node.login === 'copilot-swe-agent',
             );
 
             if (!copilot) {
-              core.warning('Copilot coding agent is unavailable here; leaving the issue for a human.');
-              await github.rest.issues.addLabels({
-                ...context.repo,
-                issue_number: number,
-                labels: ['needs-human'],
-              });
+              core.warning('The Copilot coding agent is not available on this repository.');
+              core.setOutput('outcome', 'unavailable');
               return;
             }
 
-            await github.graphql(`
-              mutation($assignableId: ID!, $actorIds: [ID!]!) {
-                replaceActorsForAssignable(
-                  input: { assignableId: $assignableId, actorIds: $actorIds }
-                ) {
-                  assignable { ... on Issue { number } }
-                }
-              }`,
-              { assignableId: repository.issue.id, actorIds: [copilot.id] },
-            );
+            try {
+              await github.graphql(`
+                mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                  replaceActorsForAssignable(
+                    input: { assignableId: $assignableId, actorIds: $actorIds }
+                  ) {
+                    assignable { ... on Issue { number } }
+                  }
+                }`,
+                { assignableId: repository.issue.id, actorIds: [copilot.id] },
+              );
+            } catch (error) {
+              core.warning(`Could not assign Copilot: ${error.message}`);
+              core.setOutput('outcome', 'unavailable');
+              return;
+            }
 
             await github.rest.issues.addLabels({
               ...context.repo,
@@ -148,3 +152,49 @@ jobs:
               labels: ['auto-fix-attempted'],
             });
             core.notice(`Assigned issue #${number} to Copilot.`);
+            core.setOutput('outcome', 'assigned');
+
+      - name: Comment with the triage outcome
+        if: steps.classify.outputs.skip == 'false'
+        uses: actions/github-script@v9
+        env:
+          TRIAGE_RESULT: ${{ steps.classify.outputs.result }}
+          ELIGIBLE: ${{ steps.classify.outputs.eligible }}
+          ASSIGN_OUTCOME: ${{ steps.assign.outputs.outcome }}
+        with:
+          script: |
+            const { formatTriageComment } =
+              await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/triage.mjs`);
+
+            const number = Number('${{ steps.classify.outputs.issue_number }}');
+            const result = JSON.parse(process.env.TRIAGE_RESULT);
+            const assignment =
+              process.env.ELIGIBLE === 'true'
+                ? process.env.ASSIGN_OUTCOME || 'unavailable'
+                : 'skipped';
+
+            // An eligible issue that could not be handed off still needs a human.
+            if (assignment === 'unavailable') {
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: number,
+                labels: ['needs-human'],
+              });
+            }
+
+            // Only comment once, so edits do not spam the thread.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: number,
+              per_page: 100,
+            });
+            if (comments.some((comment) => comment.body?.includes('### Automated triage'))) {
+              core.info('Triage comment already present; not posting another.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: number,
+              body: formatTriageComment(result, assignment),
+            });

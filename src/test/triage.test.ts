@@ -160,14 +160,30 @@ describe('formatTriageComment', () => {
 		expect(comment).toContain('### Automated triage');
 	});
 
-	it('mentions Copilot only when a fix will be attempted', () => {
-		const eligible = formatTriageComment(triageIssue(issue({ title: 'Crash', body: detail })));
-		const ineligible = formatTriageComment(
-			triageIssue(issue({ title: 'XSS vulnerability', body: detail })),
-		);
-		expect(eligible).toMatch(/Copilot/);
-		expect(ineligible).not.toMatch(/Copilot/);
-		expect(ineligible).toMatch(/maintainer/i);
+	it('promises Copilot only once assignment actually succeeded', () => {
+		const result = triageIssue(issue({ title: 'Crash on export', body: detail }));
+		expect(formatTriageComment(result, 'assigned')).toMatch(/Copilot has been assigned/);
+		expect(formatTriageComment(result, 'unavailable')).not.toMatch(/has been assigned/);
+	});
+
+	it('explains when an eligible issue could not be handed off', () => {
+		const result = triageIssue(issue({ title: 'Crash on export', body: detail }));
+		const comment = formatTriageComment(result, 'unavailable');
+		expect(comment).toMatch(/could not be/i);
+		expect(comment).toMatch(/maintainer/i);
+	});
+
+	it('says nothing about Copilot for ineligible issues', () => {
+		const result = triageIssue(issue({ title: 'XSS vulnerability', body: detail }));
+		const comment = formatTriageComment(result, 'skipped');
+		expect(comment).not.toMatch(/Copilot/);
+		expect(comment).toMatch(/not attempted/);
+		expect(comment).toMatch(/maintainer/i);
+	});
+
+	it('defaults to the skipped wording', () => {
+		const result = triageIssue(issue({ title: 'XSS vulnerability', body: detail }));
+		expect(formatTriageComment(result)).toBe(formatTriageComment(result, 'skipped'));
 	});
 
 	it('lists the category and labels', () => {

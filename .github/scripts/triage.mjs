@@ -215,26 +215,41 @@ function assessAutoFix(issue, category) {
 
 /**
  * Human-readable summary posted as a comment on the issue.
+ *
  * @param {TriageResult} result
+ * @param {'assigned'|'unavailable'|'skipped'} [assignment]
+ *   Outcome of the Copilot hand-off. `unavailable` means the workflow wanted to
+ *   delegate but could not (for example no user token is configured).
  * @returns {string}
  */
-export function formatTriageComment(result) {
+export function formatTriageComment(result, assignment = 'skipped') {
 	const lines = [
 		'### Automated triage',
 		'',
 		`- **Category:** ${result.category}`,
 		`- **Labels:** ${result.labels.map((label) => `\`${label}\``).join(', ')}`,
-		`- **Automated fix:** ${result.autoFixEligible ? 'will be attempted' : 'not attempted'} — ${result.reason}`,
 	];
 
-	if (result.autoFixEligible) {
+	if (assignment === 'assigned') {
 		lines.push(
+			'- **Automated fix:** requested — ' + result.reason,
 			'',
-			'GitHub Copilot has been asked to attempt a fix and will open a linked pull request if it finds one.',
+			'GitHub Copilot has been assigned and will open a linked pull request if it finds a fix.',
 			'Any such pull request still needs human review before merging.',
 		);
+	} else if (assignment === 'unavailable') {
+		lines.push(
+			'- **Automated fix:** eligible, but could not be requested — ' + result.reason,
+			'',
+			'This issue qualified for an automated fix attempt, but the Copilot coding agent could not be assigned.',
+			'A maintainer will pick it up instead.',
+		);
 	} else {
-		lines.push('', 'A maintainer will take a look. Thanks for the report!');
+		lines.push(
+			'- **Automated fix:** not attempted — ' + result.reason,
+			'',
+			'A maintainer will take a look. Thanks for the report!',
+		);
 	}
 
 	return lines.join('\n');

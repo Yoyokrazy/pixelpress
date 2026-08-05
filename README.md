@@ -139,6 +139,21 @@ performance **and** carry enough detail to act on. Deliberately excluded:
 
 Any pull request Copilot opens still requires human review before merging.
 
+> [!IMPORTANT]
+> Assigning the Copilot coding agent requires a **user** token. The default
+> `GITHUB_TOKEN` is a GitHub App installation token and the API rejects it with
+> *"Assigning agents is not supported with GitHub App installation tokens"*.
+>
+> To enable automated fixes, add a secret named `COPILOT_ASSIGN_TOKEN`:
+>
+> 1. Create a [fine-grained PAT](https://github.com/settings/personal-access-tokens/new)
+>    scoped to this repository only, with **Issues: Read and write**
+> 2. Add it under **Settings → Secrets and variables → Actions** as
+>    `COPILOT_ASSIGN_TOKEN`
+>
+> Without the secret, triage still labels and comments on every issue; eligible
+> ones are simply marked `needs-human` instead of being delegated.
+
 The classification rules live in
 [`.github/scripts/triage.mjs`](.github/scripts/triage.mjs) and are unit tested in
 [`src/test/triage.test.ts`](src/test/triage.test.ts), so they can be changed with
