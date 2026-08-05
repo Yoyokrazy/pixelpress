@@ -1,5 +1,7 @@
 # PixelPress
 
+**Live: <https://yoyokrazy.github.io/pixelpress/>**
+
 Convert images into a PDF, and PDF pages back into images — entirely in your browser.
 
 Nothing is uploaded. Every conversion runs on your own machine using
@@ -112,12 +114,13 @@ testable in isolation from the UI.
 ## Deployment
 
 Pushing to `main` runs CI (typecheck, lint, test, build) and then the
-**Deploy to GitHub Pages** workflow.
+**Deploy to GitHub Pages** workflow, which publishes to
+<https://yoyokrazy.github.io/pixelpress/>.
 
 The deploy workflow probes the Pages API first and skips cleanly if Pages is not enabled,
-so it is safe to leave switched on. GitHub Pages requires a public repository or a paid
-plan; once either is true, enable it under **Settings → Pages → Build and deployment →
-Source: GitHub Actions** and the next push deploys automatically. No workflow changes needed.
+so a fork without Pages configured will not see failing runs. To enable it on a fork:
+**Settings → Pages → Build and deployment → Source: GitHub Actions**. Note that GitHub
+Pages requires a public repository or a paid plan.
 
 The workflow sets `BASE_PATH` so the bundle resolves assets from `/<repo>/`. The build is
 fully static, so any static host (Netlify, Vercel, S3, a plain nginx directory) also works —
