@@ -160,9 +160,9 @@ jobs:
         if: steps.classify.outputs.skip == 'false'
         uses: actions/github-script@v9
         env:
-          # toJSON quotes the value; without it YAML reads a leading "{" as a
-          # flow mapping and the JSON never reaches the script intact.
-          TRIAGE_RESULT: ${{ toJSON(steps.classify.outputs.triage) }}
+          # Expression results are substituted after the workflow YAML is
+          # parsed, so the JSON needs no extra quoting here.
+          TRIAGE_RESULT: ${{ steps.classify.outputs.triage }}
           ELIGIBLE: ${{ steps.classify.outputs.eligible }}
           ASSIGN_OUTCOME: ${{ steps.assign.outputs.outcome }}
         with:
@@ -172,12 +172,15 @@ jobs:
 
             const number = Number('${{ steps.classify.outputs.issue_number }}');
             const raw = process.env.TRIAGE_RESULT ?? '';
-            core.debug(`Raw triage payload: ${raw}`);
             let result;
             try {
               result = JSON.parse(raw);
+              // Tolerate a double-encoded payload rather than failing outright.
+              if (typeof result === 'string') {
+                result = JSON.parse(result);
+              }
             } catch {
-              core.setFailed(`Could not read the triage result (got ${JSON.stringify(raw.slice(0, 80))}).`);
+              core.setFailed(`Could not read the triage result (got ${JSON.stringify(raw.slice(0, 120))}).`);
               return;
             }
             if (!Array.isArray(result?.labels)) {
