@@ -3,13 +3,17 @@ name: Dependabot
 # Reviews Dependabot pull requests automatically. Patch and minor updates are
 # merged once CI is green; major updates are labelled and left for a human,
 # since those are the ones that break things.
+#
+# Security note: this uses `pull_request_target`, which runs with repository
+# write access. It deliberately never checks out or executes the pull request's
+# code — it only reads Dependabot's metadata and calls the API — so untrusted
+# code from a branch cannot run here. Permissions are granted per job rather
+# than at the top level.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: dependabot-${{ github.event.pull_request.number }}
@@ -20,6 +24,10 @@ jobs:
     name: Review Dependabot PR
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
+    permissions:
+      # `contents: write` is required by `gh pr merge --auto`.
+      contents: write
+      pull-requests: write
     steps:
       - name: Fetch update metadata
         id: metadata
