@@ -205,7 +205,11 @@ export function PdfToImagesView({ notify }: PdfToImagesViewProps) {
 				);
 			}
 			if (errors.length > 0) {
-				notify('warning', `${errors.length} page${errors.length === 1 ? '' : 's'} had problems`, errors.slice(0, 3).join(' · '));
+				notify(
+					'warning',
+					`${errors.length} issue${errors.length === 1 ? '' : 's'} while converting`,
+					errors.slice(0, 3).join(' · '),
+				);
 			}
 			if (rendered.length === 0 && errors.length === 0) {
 				notify('warning', 'Nothing matched the selected page range');
