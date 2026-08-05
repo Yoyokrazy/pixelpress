@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	DndContext,
 	KeyboardSensor,
@@ -63,6 +63,19 @@ export function ImagesToPdfView({ notify }: ImagesToPdfViewProps) {
 	const [sortKey, setSortKey] = useState<SortKey>('manual');
 	const [busy, setBusy] = useState(false);
 	const abortRef = useRef<AbortController | null>(null);
+	const itemsRef = useRef<ImageItem[]>([]);
+
+	itemsRef.current = items;
+
+	// Release thumbnail object URLs when the view goes away.
+	useEffect(
+		() => () => {
+			for (const item of itemsRef.current) {
+				URL.revokeObjectURL(item.previewUrl);
+			}
+		},
+		[],
+	);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

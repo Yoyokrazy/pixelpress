@@ -180,9 +180,19 @@ export default function App() {
 			</header>
 
 			<main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
-				{tab === 'images-to-pdf' ? <ImagesToPdfView notify={notify} /> : null}
-				{tab === 'pdf-to-images' ? <PdfToImagesView notify={notify} /> : null}
-				{tab === 'toolbox' ? <PdfToolboxView notify={notify} /> : null}
+				{/*
+					All three views stay mounted so switching tabs never discards the
+					files, ordering and previews the user has already set up.
+				*/}
+				<div role="tabpanel" aria-label="Images to PDF" hidden={tab !== 'images-to-pdf'}>
+					<ImagesToPdfView notify={notify} />
+				</div>
+				<div role="tabpanel" aria-label="PDF to images" hidden={tab !== 'pdf-to-images'}>
+					<PdfToImagesView notify={notify} />
+				</div>
+				<div role="tabpanel" aria-label="PDF toolbox" hidden={tab !== 'toolbox'}>
+					<PdfToolboxView notify={notify} />
+				</div>
 			</main>
 
 			<footer className="border-t border-slate-200 px-4 py-4 text-center text-xs text-slate-500 sm:px-6 dark:border-slate-800 dark:text-slate-400">
