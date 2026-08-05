@@ -14,6 +14,10 @@ on:
       - main
   steps:
     - id: check
+      # `check_result` reads this step's `outcome`, which ignores
+      # continue-on-error. The gate therefore still works, but a deliberate
+      # skip no longer marks the whole run as failed.
+      continue-on-error: true
       env:
         HAS_COPILOT_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN != '' }}
       run: |
