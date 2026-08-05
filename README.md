@@ -116,10 +116,52 @@ testable in isolation from the UI.
 
 | Workflow | Trigger | What it does |
 | -------- | ------- | ------------ |
-| **CI** | Push / PR to `main` | Typecheck, lint, test, build |
+| **CI** | Push / PR to `main` | Typecheck, lint, test with coverage, build. Posts a coverage table on pull requests. |
 | **Deploy to GitHub Pages** | Push to `main` | Publishes the site; skips cleanly if Pages is not enabled |
 | **Issue triage** | Issue opened / reopened / edited | Categorises and labels the issue, then asks Copilot to attempt a fix when it looks actionable |
 | **Dependabot** | Dependabot PR | Labels the update type, auto-merges patch and minor once CI is green, flags majors for review |
+| **CI Failure Doctor** | CI or deploy run fails | Agentic. Investigates the failure, matches it against past incidents and files a deduplicated report issue. |
+| **Daily Test Improver** | Weekly, or `/test-assist` | Agentic. Finds coverage gaps and opens draft pull requests adding tests. |
+
+Copilot code review is requested automatically on every pull request through a
+repository ruleset, including draft pull requests.
+
+### Coverage
+
+`npm run test:coverage` enforces thresholds defined in `vite.config.ts`. They sit
+just below current coverage and act as a **ratchet against regressions** — raise
+them as coverage improves, never lower them to make a change pass.
+
+`download.ts` and `pdfToImages.ts` need canvas and the pdf.js worker, which jsdom
+does not provide, so they are verified in a real browser rather than mocked.
+`pdf-lib` is pure JavaScript, so PDF construction *is* covered by unit tests.
+
+### Agentic workflows (gh-aw)
+
+The two agentic workflows are built with
+[gh-aw](https://github.com/github/gh-aw). Each is a Markdown file with YAML
+frontmatter, compiled to a `.lock.yml` that Actions executes — **both files are
+committed and must stay in sync**:
+
+```bash
+gh extension install github/gh-aw
+gh aw compile          # after editing any .md workflow
+gh aw status
+```
+
+Security model: the agent job itself runs with `permissions: read-all`. Every
+write — issue, comment, pull request, label — is declared under `safe-outputs:`
+and performed by a separate job that only runs after a threat-detection job
+screens the agent's requested actions. A prompt-injected agent therefore cannot
+write to the repository or exfiltrate secrets directly. `protected-files`
+prevents agents from editing sensitive paths such as the workflows themselves.
+
+> [!NOTE]
+> The agentic workflows need a `COPILOT_GITHUB_TOKEN` secret — a fine-grained PAT
+> with **Account permissions → Copilot Requests → Read**. The
+> `permissions: copilot-requests: write` shortcut only works for organisation
+> Copilot subscriptions, not personal accounts. Without the secret these two
+> workflows fail; the rest of CI is unaffected.
 
 ### Issue triage
 
@@ -160,6 +202,19 @@ The classification rules live in
 [`src/test/triage.test.ts`](src/test/triage.test.ts), so they can be changed with
 confidence. To re-run triage on an existing issue, dispatch the **Issue triage**
 workflow with the issue number.
+
+> [!NOTE]
+> The model used by the Copilot coding agent **cannot be set as a repository
+> default**. A model picker appears only when you assign an issue by hand on
+> github.com; issues assigned by automation (as this workflow does) always run
+> on **Auto**. The agentic gh-aw workflows are different — they *do* accept an
+> explicit model via `engine: { id: copilot, model: ... }` in their frontmatter.
+
+### Agent context
+
+[`.github/copilot-instructions.md`](.github/copilot-instructions.md) gives AI
+agents the architecture, testing expectations and — most usefully — the domain
+bugs that have already been fixed once, so they are not reintroduced.
 
 ### Dependencies
 
