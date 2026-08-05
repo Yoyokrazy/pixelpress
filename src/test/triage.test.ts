@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	EMITTED_LABELS,
 	formatTriageComment,
 	MIN_ACTIONABLE_BODY_LENGTH,
 	triageIssue,
@@ -151,6 +152,47 @@ describe('triageIssue auto-fix eligibility', () => {
 	it('returns sorted, deduplicated labels', () => {
 		const { labels } = triageIssue(issue({ title: 'Crash', body: detail, labels: ['bug', 'bug'] }));
 		expect(labels).toEqual([...new Set(labels)].sort());
+	});
+});
+
+describe('EMITTED_LABELS', () => {
+	// GitHub silently ignores labels that do not exist on the repository, so a
+	// rule emitting an undeclared label would fail without any error.
+	const titles = [
+		'Conversion crashes on large PNGs',
+		'Please add support for HEIC images',
+		'Typo in the README',
+		'Bump pdf-lib to the latest version',
+		'Which license does this use?',
+		'Possible XSS in the filename field',
+		'Buttons are missing ARIA labels',
+		'Conversion is very slow for 200 images',
+		'How do I convert a folder?',
+		'Hello there',
+	];
+
+	it('covers every label the rules can produce', () => {
+		for (const title of titles) {
+			for (const label of triageIssue(issue({ title, body: detail })).labels) {
+				expect(EMITTED_LABELS, `"${title}" emitted an undeclared label`).toContain(label);
+			}
+		}
+	});
+
+	it('declares no label that is unreachable', () => {
+		const produced = new Set<string>(['auto-fix-attempted']); // applied by the workflow, not the rules
+		for (const title of titles) {
+			for (const label of triageIssue(issue({ title, body: detail })).labels) {
+				produced.add(label);
+			}
+		}
+		for (const label of EMITTED_LABELS) {
+			expect(produced, `"${label}" is declared but never emitted`).toContain(label);
+		}
+	});
+
+	it('is sorted and free of duplicates, so it reads as a contract', () => {
+		expect([...EMITTED_LABELS]).toEqual([...new Set(EMITTED_LABELS)].sort());
 	});
 });
 

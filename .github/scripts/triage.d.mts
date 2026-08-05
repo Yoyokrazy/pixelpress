@@ -31,6 +31,12 @@ export interface TriageResult {
 /** Minimum body length before an issue is considered actionable. */
 export declare const MIN_ACTIONABLE_BODY_LENGTH: number;
 
+/**
+ * Every label the triage rules can emit. Anything listed here must also exist
+ * on the repository, since GitHub silently ignores unknown labels.
+ */
+export declare const EMITTED_LABELS: readonly string[];
+
 export declare function triageIssue(issue: IssueInput): TriageResult;
 
 /** Outcome of the Copilot hand-off attempt. */

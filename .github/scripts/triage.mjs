@@ -147,6 +147,27 @@ const AUTO_FIX_CATEGORIES = new Set([
 	'performance',
 ]);
 
+/**
+ * Every label this module can emit. The triage workflow applies these directly,
+ * and GitHub silently ignores labels that do not exist, so a label added here
+ * must also be created on the repository. `src/test/triage.test.ts` asserts
+ * that no rule emits a label outside this set.
+ */
+export const EMITTED_LABELS = Object.freeze([
+	'a11y',
+	'auto-fix-attempted',
+	'bug',
+	'dependencies',
+	'documentation',
+	'enhancement',
+	'license',
+	'needs-human',
+	'performance',
+	'question',
+	'security',
+	'triaged',
+]);
+
 /** Minimum body length before an issue is considered actionable. */
 export const MIN_ACTIONABLE_BODY_LENGTH = 30;
 
