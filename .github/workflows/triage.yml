@@ -1,0 +1,150 @@
+name: Issue triage
+
+# Labels every newly filed issue and, when the issue looks actionable, asks
+# GitHub Copilot to attempt a fix. Classification lives in
+# .github/scripts/triage.mjs so it can be unit tested (src/test/triage.test.ts).
+on:
+  issues:
+    types: [opened, reopened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to (re-)triage
+        required: true
+        type: number
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: triage-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    name: Triage issue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Classify and label
+        id: classify
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { triageIssue, formatTriageComment } =
+              await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/triage.mjs`);
+
+            const number = context.payload.issue?.number
+              ?? Number(context.payload.inputs?.issue_number);
+            const { data: issue } = await github.rest.issues.get({
+              ...context.repo,
+              issue_number: number,
+            });
+
+            if (issue.pull_request) {
+              core.info('Target is a pull request, not an issue. Skipping.');
+              core.setOutput('eligible', 'false');
+              return;
+            }
+
+            const result = triageIssue({
+              title: issue.title ?? '',
+              body: issue.body ?? '',
+              author: issue.user?.login ?? '',
+              labels: (issue.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)),
+            });
+
+            core.notice(`Issue #${number} categorised as "${result.category}" (auto-fix: ${result.autoFixEligible}).`);
+
+            // Drop the holding label now that a decision has been made.
+            const toApply = result.labels.filter((l) => l !== 'needs-triage');
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: number,
+              labels: toApply,
+            });
+            await github.rest.issues.removeLabel({
+              ...context.repo,
+              issue_number: number,
+              name: 'needs-triage',
+            }).catch(() => core.debug('needs-triage was not present.'));
+
+            // Only comment once, so edits do not spam the thread.
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: number,
+              per_page: 100,
+            });
+            const alreadyCommented = comments.some(
+              (c) => c.user?.type === 'Bot' && c.body?.includes('### Automated triage'),
+            );
+            if (!alreadyCommented) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: number,
+                body: formatTriageComment(result),
+              });
+            }
+
+            core.setOutput('eligible', String(result.autoFixEligible));
+            core.setOutput('issue_number', String(number));
+            core.setOutput('category', result.category);
+
+      - name: Ask Copilot to attempt a fix
+        if: steps.classify.outputs.eligible == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const number = Number('${{ steps.classify.outputs.issue_number }}');
+
+            // Copilot is assigned through GraphQL: it is exposed as a suggested
+            // actor rather than a normal assignable user.
+            const query = `
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 25) {
+                    nodes { login ... on Bot { id } ... on User { id } }
+                  }
+                  issue(number: $number) { id }
+                }
+              }`;
+
+            const { repository } = await github.graphql(query, {
+              owner: context.repo.owner,
+              name: context.repo.repo,
+              number,
+            });
+
+            const copilot = repository.suggestedActors.nodes.find(
+              (node) => node.login === 'copilot-swe-agent',
+            );
+
+            if (!copilot) {
+              core.warning('Copilot coding agent is unavailable here; leaving the issue for a human.');
+              await github.rest.issues.addLabels({
+                ...context.repo,
+                issue_number: number,
+                labels: ['needs-human'],
+              });
+              return;
+            }
+
+            await github.graphql(`
+              mutation($assignableId: ID!, $actorIds: [ID!]!) {
+                replaceActorsForAssignable(
+                  input: { assignableId: $assignableId, actorIds: $actorIds }
+                ) {
+                  assignable { ... on Issue { number } }
+                }
+              }`,
+              { assignableId: repository.issue.id, actorIds: [copilot.id] },
+            );
+
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: number,
+              labels: ['auto-fix-attempted'],
+            });
+            core.notice(`Assigned issue #${number} to Copilot.`);

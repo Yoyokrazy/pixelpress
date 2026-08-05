@@ -111,6 +111,50 @@ testable in isolation from the UI.
 
 ---
 
+## Automation
+
+| Workflow | Trigger | What it does |
+| -------- | ------- | ------------ |
+| **CI** | Push / PR to `main` | Typecheck, lint, test, build |
+| **Deploy to GitHub Pages** | Push to `main` | Publishes the site; skips cleanly if Pages is not enabled |
+| **Issue triage** | Issue opened / reopened / edited | Categorises and labels the issue, then asks Copilot to attempt a fix when it looks actionable |
+| **Dependabot** | Dependabot PR | Labels the update type, auto-merges patch and minor once CI is green, flags majors for review |
+
+### Issue triage
+
+Every new issue is classified into one of: `bug`, `feature`, `documentation`,
+`dependencies`, `license`, `security`, `performance`, `accessibility`, `question`
+or `unknown`, and labelled accordingly. The workflow then posts a short comment
+explaining what it decided.
+
+Issues are handed to GitHub Copilot for an automated fix attempt only when they
+are categorised as bug, documentation, dependencies, license, accessibility or
+performance **and** carry enough detail to act on. Deliberately excluded:
+
+- **Security reports** — routed to a human; please use a
+  [private advisory](https://github.com/Yoyokrazy/pixelpress/security/advisories/new)
+- **Feature requests** — need a design decision first
+- **Questions** and issues that could not be categorised
+- Anything filed by a bot
+
+Any pull request Copilot opens still requires human review before merging.
+
+The classification rules live in
+[`.github/scripts/triage.mjs`](.github/scripts/triage.mjs) and are unit tested in
+[`src/test/triage.test.ts`](src/test/triage.test.ts), so they can be changed with
+confidence. To re-run triage on an existing issue, dispatch the **Issue triage**
+workflow with the issue number.
+
+### Dependencies
+
+Dependabot checks npm packages and GitHub Actions weekly, with a **7-day
+cooldown**: a newly published version is not proposed until it has been out for
+a week, which avoids chasing releases that get pulled shortly after publishing.
+Security updates bypass the cooldown. Related packages are grouped so routine
+updates arrive as a handful of PRs rather than one per package.
+
+---
+
 ## Deployment
 
 Pushing to `main` runs CI (typecheck, lint, test, build) and then the

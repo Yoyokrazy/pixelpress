@@ -1,0 +1,90 @@
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # npm dependencies
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Los_Angeles
+    # Wait 7 days after a release before proposing it, so freshly published
+    # versions have time to be pulled if they turn out to be broken.
+    # Cooldown applies to version updates only; security updates are never
+    # delayed.
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: build
+      prefix-development: chore
+      include: scope
+    groups:
+      # Roll routine updates into a few PRs instead of one per package.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+      dnd-kit:
+        patterns:
+          - '@dnd-kit/*'
+      pdf:
+        patterns:
+          - pdf-lib
+          - pdfjs-dist
+      build-tooling:
+        dependency-type: development
+        patterns:
+          - vite
+          - '@vitejs/*'
+          - typescript
+          - oxlint
+          - tailwindcss
+          - '@tailwindcss/*'
+      testing:
+        dependency-type: development
+        patterns:
+          - vitest
+          - jsdom
+          - '@testing-library/*'
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions used by the workflows
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Los_Angeles
+    cooldown:
+      default-days: 7
+      semver-major-days: 7
+      semver-minor-days: 7
+      semver-patch-days: 7
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns:
+          - '*'
