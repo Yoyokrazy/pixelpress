@@ -1,0 +1,46 @@
+name: "Copilot Setup Steps"
+
+# Prepares the environment the GitHub Copilot coding agent works in, so it can
+# install dependencies, run the test suite and build before opening a pull
+# request. The job MUST be called `copilot-setup-steps` to be picked up.
+#
+# It also installs the gh-aw CLI so agentic workflows can be compiled and
+# inspected from the same environment.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    # The coding agent receives its own token; these steps only need to read.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Warm the build and test caches
+        # Surfaces a broken baseline here rather than midway through an agent
+        # session, and primes the cache so the first agent build is quick.
+        run: |
+          npm run typecheck
+          npm run test
+          npm run build
+
+      - name: Install gh-aw extension
+        uses: github/gh-aw-actions/setup-cli@6f8e8ef27dc666d7945cf450b3a16b8872092c94 # v0.83.3
+        with:
+          version: v0.83.3
