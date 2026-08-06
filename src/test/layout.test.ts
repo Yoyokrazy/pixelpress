@@ -72,6 +72,15 @@ describe('gridShape', () => {
 	it('collapses to a single cell for one image', () => {
 		expect(gridShape(1, 400, 800)).toEqual({ columns: 1, rows: 1 });
 	});
+
+	it('uses ceil-sqrt for counts without a hardcoded shape', () => {
+		// count=3 → columns=2, rows=2 (ceil(sqrt(3))=2, ceil(3/2)=2)
+		expect(gridShape(3, 400, 800)).toEqual({ columns: 2, rows: 2 });
+		// count=5 → columns=3, rows=2
+		expect(gridShape(5, 400, 800)).toEqual({ columns: 3, rows: 2 });
+		// count=7 → columns=3, rows=3
+		expect(gridShape(7, 400, 800)).toEqual({ columns: 3, rows: 3 });
+	});
 });
 
 describe('gridCells', () => {
@@ -117,5 +126,11 @@ describe('chunk', () => {
 
 	it('handles an empty list', () => {
 		expect(chunk([], 3)).toEqual([]);
+	});
+
+	it('returns all items in one group when size is zero or negative', () => {
+		// size <= 0 is the guard branch at line 129
+		expect(chunk([1, 2, 3], 0)).toEqual([[1, 2, 3]]);
+		expect(chunk([1, 2, 3], -1)).toEqual([[1, 2, 3]]);
 	});
 });
