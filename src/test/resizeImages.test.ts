@@ -36,6 +36,15 @@ describe('computeResizeScale', () => {
 		expect(computeResizeScale(800, 600, options({ mode: 'longestEdge', longestEdge: 4000 }))).toBe(1);
 	});
 
+	it('is a safe no-op when a persisted cap is missing or corrupt', () => {
+		expect(computeResizeScale(800, 600, options({ mode: 'longestEdge', longestEdge: 0 }))).toBe(1);
+		expect(computeResizeScale(800, 600, options({ mode: 'longestEdge', longestEdge: -100 }))).toBe(1);
+		expect(computeResizeScale(800, 600, options({ mode: 'longestEdge', longestEdge: NaN }))).toBe(1);
+		expect(
+			computeResizeScale(800, 600, options({ mode: 'longestEdge', longestEdge: Infinity })),
+		).toBe(1);
+	});
+
 	it('is safe for a degenerate zero-size source', () => {
 		expect(computeResizeScale(0, 0, options({ mode: 'longestEdge', longestEdge: 500 }))).toBe(1);
 	});
