@@ -67,7 +67,9 @@ function clamp(value: number, min: number, max: number): number {
 export function computeResizeScale(width: number, height: number, options: ResizeOptions): number {
 	if (options.mode === 'longestEdge') {
 		const longest = Math.max(width, height);
-		if (longest <= 0) {
+		// A missing or corrupt persisted cap (NaN, Infinity, <= 0) must not
+		// collapse the image to 1×1 — fall back to a no-op shrink instead.
+		if (longest <= 0 || !Number.isFinite(options.longestEdge) || options.longestEdge <= 0) {
 			return 1;
 		}
 		return clamp(options.longestEdge / longest, 0, 1);

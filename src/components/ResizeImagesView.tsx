@@ -42,6 +42,9 @@ interface PreviewState {
 /** Delay before re-encoding previews so dragging a slider does not thrash the canvas. */
 const PREVIEW_DEBOUNCE_MS = 200;
 
+/** Quick-scale buttons, including a 100% "reset to original" option. */
+const PRESET_PERCENTAGES: number[] = [...RESIZE_PERCENTAGE_PRESETS, 100];
+
 export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 	const [items, setItems] = useState<ImageItem[]>([]);
 	const [options, updateOptions, resetOptions] = usePersistentState<ResizeOptions>(
@@ -366,18 +369,11 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 								/>
 								<SegmentedControl
 									label="Quick presets"
-									value={RESIZE_PERCENTAGE_PRESETS.includes(
-										options.percentage as (typeof RESIZE_PERCENTAGE_PRESETS)[number],
-									)
-										? options.percentage
-										: 0}
-									options={[
-										...RESIZE_PERCENTAGE_PRESETS.map((preset) => ({
-											value: preset,
-											label: `${preset}%`,
-										})),
-										{ value: 100, label: '100%' },
-									]}
+									value={PRESET_PERCENTAGES.includes(options.percentage) ? options.percentage : 0}
+									options={PRESET_PERCENTAGES.map((preset) => ({
+										value: preset,
+										label: `${preset}%`,
+									}))}
 									onChange={(percentage) => updateOptions({ percentage })}
 								/>
 							</>
