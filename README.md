@@ -37,6 +37,15 @@ works offline and your documents never touch a server.
 - Preview every rendered page, deselect the ones you do not want
 - Download a single image or **all selected pages as a ZIP**
 
+### Resize
+
+- Drop **PNG, JPEG or WebP** images to scale them down to a smaller file
+- Resize by **percentage** (with 25 / 50 / 75 / 100% presets) or by capping the **longest edge**
+- Images are only ever **scaled down**, never enlarged
+- Re-encode as **JPEG, PNG or WebP**, or keep the original format, with a **quality** slider
+- Live **output-size preview** on every tile — new dimensions, new file size and the percentage saved
+- Download a single image or **all resized images as a ZIP**
+
 ### Toolbox
 
 - **Merge** several PDFs into one, in an order you control
@@ -48,7 +57,7 @@ works offline and your documents never touch a server.
 
 - Light, dark and system **themes**, applied before first paint so there is no flash
 - Settings are **remembered** between visits
-- Keyboard shortcuts: <kbd>1</kbd>–<kbd>3</kbd> to switch tabs, <kbd>D</kbd> to cycle themes
+- Keyboard shortcuts: <kbd>1</kbd>–<kbd>4</kbd> to switch tabs, <kbd>D</kbd> to cycle themes
 - Accessible controls with proper labelling, focus rings and live-region notifications
 
 ---

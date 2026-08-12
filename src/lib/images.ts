@@ -226,9 +226,9 @@ export async function prepareImageForPdf(
 	return { bytes, type: outputType, width: target.width, height: target.height };
 }
 
-type Drawable = ImageBitmap | HTMLImageElement;
+export type Drawable = ImageBitmap | HTMLImageElement;
 
-async function decodeToDrawable(file: File): Promise<Drawable> {
+export async function decodeToDrawable(file: File): Promise<Drawable> {
 	if (typeof createImageBitmap === 'function' && file.type !== 'image/svg+xml') {
 		try {
 			// `from-image` normalises EXIF rotation into the bitmap itself.
@@ -252,7 +252,7 @@ async function decodeToDrawable(file: File): Promise<Drawable> {
 	}
 }
 
-function closeDrawable(drawable: Drawable): void {
+export function closeDrawable(drawable: Drawable): void {
 	if ('close' in drawable && typeof drawable.close === 'function') {
 		drawable.close();
 	}
