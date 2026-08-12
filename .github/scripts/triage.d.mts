@@ -39,6 +39,20 @@ export declare const EMITTED_LABELS: readonly string[];
 
 export declare function triageIssue(issue: IssueInput): TriageResult;
 
+export interface AutoFixAssessment {
+	/** True when the issue looks actionable enough to hand to a coding agent. */
+	eligible: boolean;
+	/** Why the issue was or was not considered eligible. */
+	reason: string;
+}
+
+/**
+ * Decide whether a categorised issue is eligible for an automated fix. Accepts
+ * any category string so the defensive "no automated handling" guard can be
+ * exercised for categories a future rule might introduce.
+ */
+export declare function assessAutoFix(issue: IssueInput, category: string): AutoFixAssessment;
+
 /** Outcome of the Copilot hand-off attempt. */
 export type AssignmentOutcome = 'assigned' | 'unavailable' | 'skipped';
 

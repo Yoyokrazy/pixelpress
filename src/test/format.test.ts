@@ -4,6 +4,7 @@ import {
 	dedupeFileName,
 	expandFileNamePattern,
 	formatBytes,
+	formatDuration,
 	parseHexColor,
 	sanitizeFileName,
 	stripExtension,
@@ -149,5 +150,25 @@ describe('commonPrefix', () => {
 	it('returns the whole name for a single entry', () => {
 		expect(commonPrefix(['holiday'])).toBe('holiday');
 		expect(commonPrefix(['scan-001'])).toBe('scan-001');
+	});
+});
+
+describe('formatDuration', () => {
+	it('reports sub-second durations in whole milliseconds', () => {
+		expect(formatDuration(0)).toBe('0 ms');
+		expect(formatDuration(4.6)).toBe('5 ms');
+		expect(formatDuration(999)).toBe('999 ms');
+	});
+
+	it('reports durations under a minute in seconds to one decimal', () => {
+		expect(formatDuration(1000)).toBe('1.0 s');
+		expect(formatDuration(2500)).toBe('2.5 s');
+		expect(formatDuration(59_400)).toBe('59.4 s');
+	});
+
+	it('reports a minute or more as whole minutes and seconds', () => {
+		expect(formatDuration(60_000)).toBe('1m 0s');
+		expect(formatDuration(90_000)).toBe('1m 30s');
+		expect(formatDuration(3_661_000)).toBe('61m 1s');
 	});
 });

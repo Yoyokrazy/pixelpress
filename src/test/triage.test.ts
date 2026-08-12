@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	assessAutoFix,
 	EMITTED_LABELS,
 	formatTriageComment,
 	MIN_ACTIONABLE_BODY_LENGTH,
@@ -152,6 +153,23 @@ describe('triageIssue auto-fix eligibility', () => {
 	it('returns sorted, deduplicated labels', () => {
 		const { labels } = triageIssue(issue({ title: 'Crash', body: detail, labels: ['bug', 'bug'] }));
 		expect(labels).toEqual([...new Set(labels)].sort());
+	});
+});
+
+describe('assessAutoFix', () => {
+	// Safety net: if a future rule introduces a category that is neither
+	// special-cased nor added to AUTO_FIX_CATEGORIES, the issue must still be
+	// routed to a human rather than silently attempted.
+	it('routes a category with no automated handling to a human', () => {
+		const result = assessAutoFix(issue(), 'style');
+		expect(result.eligible).toBe(false);
+		expect(result.reason).toMatch(/no automated handling/i);
+		expect(result.reason).toContain('style');
+	});
+
+	it('accepts a supported category with enough detail', () => {
+		const result = assessAutoFix(issue({ body: detail }), 'bug');
+		expect(result.eligible).toBe(true);
 	});
 });
 

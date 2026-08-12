@@ -85,6 +85,32 @@ function imageItem(name: string, width: number, height: number): ImageItem {
 	};
 }
 
+/**
+ * A tiny but valid 8×8 baseline JPEG. Passing an already-JPEG file straight
+ * through exercises pdf-lib's `embedJpg` branch without needing a canvas.
+ */
+const JPEG_8X8_BASE64 =
+	'/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/wAALCAAIAAgBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/ANCv/9k=';
+
+function jpegItem(name: string): ImageItem {
+	const binary = atob(JPEG_8X8_BASE64);
+	const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+	const file = new File([bytes as unknown as BlobPart], name, { type: 'image/jpeg' });
+	return {
+		id: name,
+		file,
+		name,
+		size: bytes.byteLength,
+		lastModified: Date.now(),
+		previewUrl: '',
+		width: 8,
+		height: 8,
+		rotation: 0,
+		exifOrientation: 1,
+		type: 'image/jpeg',
+	};
+}
+
 function options(overrides: Partial<PdfBuildOptions> = {}): PdfBuildOptions {
 	return { ...DEFAULT_PDF_OPTIONS, ...overrides };
 }
@@ -211,5 +237,17 @@ describe('buildPdfFromImages', () => {
 	it.each(['contain', 'cover', 'stretch'] as const)('supports %s scaling', async (fit) => {
 		const result = await buildPdfFromImages([landscape], options({ pageSizeId: 'a4', fit }));
 		expect(result.pageCount).toBe(1);
+	});
+
+	it('embeds a JPEG source through the passthrough path', async () => {
+		const result = await buildPdfFromImages([jpegItem('photo.jpg')], options());
+		expect(result.pageCount).toBe(1);
+		expect(await pagesOf(result.blob)).toEqual([{ width: 8, height: 8 }]);
+	});
+
+	it('embeds a mix of PNG and JPEG sources', async () => {
+		const result = await buildPdfFromImages([landscape, jpegItem('photo.jpg')], options());
+		expect(result.pageCount).toBe(2);
+		expect(result.byteLength).toBeGreaterThan(0);
 	});
 });

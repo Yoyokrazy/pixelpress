@@ -58,6 +58,18 @@ describe('parsePageRange', () => {
 		expect(result.errors).toHaveLength(1);
 	});
 
+	it('rejects a bare separator with no bounds', () => {
+		const result = parsePageRange('-', 10);
+		expect(result.pages).toEqual([]);
+		expect(result.errors[0]).toContain('not a valid range');
+	});
+
+	it('keeps valid tokens when a bare separator is mixed in', () => {
+		const result = parsePageRange('2, :, 4', 10);
+		expect(result.pages).toEqual([2, 4]);
+		expect(result.errors).toHaveLength(1);
+	});
+
 	it('returns nothing for an empty document', () => {
 		expect(parsePageRange('1-3', 0).pages).toEqual([]);
 	});

@@ -200,7 +200,7 @@ export function triageIssue(issue) {
  * @param {IssueInput} issue
  * @param {Category} category
  */
-function assessAutoFix(issue, category) {
+export function assessAutoFix(issue, category) {
 	if (BOT_AUTHORS.has(issue.author)) {
 		return { eligible: false, reason: 'Opened by a bot; handled by its own workflow.' };
 	}
