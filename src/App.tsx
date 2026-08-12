@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ImagesToPdfView } from './components/ImagesToPdfView';
 import { PdfToImagesView } from './components/PdfToImagesView';
 import { PdfToolboxView } from './components/PdfToolboxView';
+import { ResizeImagesView } from './components/ResizeImagesView';
 import { Toaster } from './components/Toaster';
 import { IconButton } from './components/Button';
 import {
@@ -11,12 +12,13 @@ import {
 	IconLayers,
 	IconMonitor,
 	IconMoon,
+	IconResize,
 	IconSun,
 } from './components/icons';
 import { useTheme } from './hooks/useTheme';
 import { useToasts, type ToastKind } from './hooks/useToasts';
 
-type TabId = 'images-to-pdf' | 'pdf-to-images' | 'toolbox';
+type TabId = 'images-to-pdf' | 'pdf-to-images' | 'resize' | 'toolbox';
 
 const TABS: Array<{ id: TabId; label: string; short: string; hint: string }> = [
 	{
@@ -30,6 +32,12 @@ const TABS: Array<{ id: TabId; label: string; short: string; hint: string }> = [
 		label: 'PDF → Images',
 		short: 'IMG',
 		hint: 'Export pages as PNG, JPEG or WebP',
+	},
+	{
+		id: 'resize',
+		label: 'Resize',
+		short: 'SIZE',
+		hint: 'Scale images down to a smaller file',
 	},
 	{ id: 'toolbox', label: 'Toolbox', short: 'TOOLS', hint: 'Merge, split and organise PDFs' },
 ];
@@ -138,7 +146,9 @@ export default function App() {
 									? IconImage
 									: entry.id === 'pdf-to-images'
 										? IconFilePdf
-										: IconLayers;
+										: entry.id === 'resize'
+											? IconResize
+											: IconLayers;
 							return (
 								<button
 									key={entry.id}
@@ -202,6 +212,9 @@ export default function App() {
 				>
 					<PdfToImagesView notify={notify} />
 				</div>
+				<div id="tabpanel-resize" role="tabpanel" aria-labelledby="tab-resize" hidden={tab !== 'resize'}>
+					<ResizeImagesView notify={notify} />
+				</div>
 				<div id="tabpanel-toolbox" role="tabpanel" aria-labelledby="tab-toolbox" hidden={tab !== 'toolbox'}>
 					<PdfToolboxView notify={notify} />
 				</div>
@@ -211,7 +224,7 @@ export default function App() {
 				<p>
 					Everything runs locally — your files never leave this device. Shortcuts:{' '}
 					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">1</kbd>–
-					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">3</kbd> to switch
+					<kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">4</kbd> to switch
 					tabs, <kbd className="rounded border border-slate-300 px-1 dark:border-slate-700">D</kbd> for
 					theme.
 				</p>
