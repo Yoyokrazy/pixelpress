@@ -174,4 +174,61 @@ describe('readExifOrientation', () => {
 			DEFAULT_ORIENTATION,
 		);
 	});
+
+	it('stops scanning a JPEG once it walks into entropy-coded data', async () => {
+		// After SOI the next two bytes are not a 0xFFxx marker.
+		const bytes = [0xff, 0xd8, 0x00, 0x00, 0x00, 0x00];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(
+			DEFAULT_ORIENTATION,
+		);
+	});
+
+	it('stops on a JPEG segment claiming an impossible length', async () => {
+		// APP0 marker with a declared length below the mandatory 2 bytes.
+		const bytes = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x00, 0x00];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(
+			DEFAULT_ORIENTATION,
+		);
+	});
+
+	it('skips a non-EXIF JPEG segment before reaching the scan', async () => {
+		// APP0 segment (skipped) followed by start-of-scan, with no EXIF present.
+		const bytes = [
+			0xff, 0xd8,
+			0xff, 0xe0, 0x00, 0x04, 0xaa, 0xbb, // APP0 with 2 payload bytes
+			0xff, 0xda, 0x00, 0x02, // SOS
+			0x00, 0x00,
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(
+			DEFAULT_ORIENTATION,
+		);
+	});
+
+	it('skips a non-eXIf PNG chunk and stops at the pixel data', async () => {
+		const bytes = [
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
+			0x00, 0x00, 0x00, 0x0d, // IHDR length 13
+			0x49, 0x48, 0x44, 0x52, // "IHDR"
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 13 data bytes
+			0, 0, 0, 0, // CRC
+			0x00, 0x00, 0x00, 0x00, // IDAT length 0
+			0x49, 0x44, 0x41, 0x54, // "IDAT" → pixel data, stop scanning
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(
+			DEFAULT_ORIENTATION,
+		);
+	});
+
+	it('ignores an IFD whose entries run past the buffer', async () => {
+		const bytes = [
+			0xff, 0xd8, 0xff, 0xe1, 0x00, 0x14, // SOI, APP1, length
+			0x45, 0x78, 0x69, 0x66, 0x00, 0x00, // "Exif\0\0"
+			0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, // TIFF: II, 0x002a, IFD at 8
+			0x01, 0x00, // entryCount = 1
+			0x12, 0x01, 0x03, 0x00, // entry truncated after 4 of its 12 bytes
+		];
+		await expect(readExifOrientation(new Blob([new Uint8Array(bytes)]))).resolves.toBe(
+			DEFAULT_ORIENTATION,
+		);
+	});
 });
