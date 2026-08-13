@@ -1,6 +1,7 @@
 import type { ImageItem } from './types';
 import { rotatedSize } from './layout';
 import { DEFAULT_ORIENTATION, readExifOrientation } from './exif';
+import { stripImageMetadata } from './metadata';
 
 /** Formats the app accepts as conversion input. */
 export const ACCEPTED_IMAGE_TYPES = [
@@ -164,6 +165,7 @@ export async function prepareImageForPdf(
 		jpegQuality: number;
 		maxDimension: number;
 		backgroundColor: string;
+		stripMetadata?: boolean;
 	},
 ): Promise<RasterResult> {
 	const passthroughType =
@@ -177,8 +179,11 @@ export async function prepareImageForPdf(
 
 	if (passthroughType && !options.compress && !needsDownscale && !needsRotation && !isExifRotated) {
 		const buffer = await item.file.arrayBuffer();
+		// The canvas re-encode paths below drop metadata for free; the lossless
+		// passthrough keeps the original bytes, so strip it here when asked.
+		const raw = new Uint8Array(buffer);
 		return {
-			bytes: new Uint8Array(buffer),
+			bytes: options.stripMetadata ? stripImageMetadata(raw) : raw,
 			type: passthroughType,
 			width: item.width,
 			height: item.height,

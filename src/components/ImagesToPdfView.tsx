@@ -430,6 +430,12 @@ export function ImagesToPdfView({ notify }: ImagesToPdfViewProps) {
 							hint="Longest edge. 0 keeps the original resolution."
 							onChange={(maxDimension) => updateOptions({ maxDimension: Math.max(0, maxDimension) })}
 						/>
+						<ToggleField
+							label="Remove image metadata"
+							hint="Strips EXIF, GPS and camera info. Lossless — pixels are untouched."
+							checked={options.stripMetadata}
+							onChange={(stripMetadata) => updateOptions({ stripMetadata })}
+						/>
 					</div>
 				</Section>
 

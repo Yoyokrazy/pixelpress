@@ -23,6 +23,7 @@ works offline and your documents never touch a server.
 - Adjustable **margins** and **page background colour**
 - **N-up layouts**: 1, 2, 4, 6 or 9 images per page in a grid
 - Optional **JPEG compression** with a quality slider, and **downscaling** by longest edge
+- **Remove image metadata** (EXIF, GPS, camera info) losslessly from images embedded without re-encoding
 - PDF **metadata**: title, author, subject, keywords
 - Progress reporting with **cancellation** for large batches
 
