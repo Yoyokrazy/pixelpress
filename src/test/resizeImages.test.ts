@@ -4,11 +4,15 @@ import {
 	computeResizeScale,
 	computeResizedDimensions,
 	DEFAULT_RESIZE_OPTIONS,
+	DEFAULT_TARGET_SEARCH,
 	isLossyOutput,
 	RESIZE_ACCEPT_ATTRIBUTE,
 	resizeFileName,
 	resolveOutputType,
+	resolveTargetOutputType,
+	searchEncodeToTarget,
 	type ResizeOptions,
+	type TargetSearchConfig,
 } from '../lib/resizeImages';
 
 function options(overrides: Partial<ResizeOptions> = {}): ResizeOptions {
@@ -47,6 +51,87 @@ describe('computeResizeScale', () => {
 
 	it('is safe for a degenerate zero-size source', () => {
 		expect(computeResizeScale(0, 0, options({ mode: 'longestEdge', longestEdge: 500 }))).toBe(1);
+	});
+
+	it('predicts the original size in target-size mode (scale chosen later)', () => {
+		expect(computeResizeScale(1000, 800, options({ mode: 'targetSize', targetSizeKb: 100 }))).toBe(1);
+	});
+});
+
+describe('resolveTargetOutputType', () => {
+	it('honours an explicit lossy format', () => {
+		expect(resolveTargetOutputType('image/png', 'jpeg')).toBe('image/jpeg');
+		expect(resolveTargetOutputType('image/jpeg', 'webp')).toBe('image/webp');
+	});
+
+	it('never targets PNG — an explicit PNG request falls back to WebP', () => {
+		expect(resolveTargetOutputType('image/png', 'png')).toBe('image/webp');
+	});
+
+	it('keeps a JPEG source as JPEG and uses WebP otherwise under keep', () => {
+		expect(resolveTargetOutputType('image/jpeg', 'keep')).toBe('image/jpeg');
+		expect(resolveTargetOutputType('image/png', 'keep')).toBe('image/webp');
+		expect(resolveTargetOutputType('image/webp', 'keep')).toBe('image/webp');
+	});
+});
+
+describe('searchEncodeToTarget', () => {
+	function config(overrides: Partial<TargetSearchConfig> = {}): TargetSearchConfig {
+		return { ...DEFAULT_TARGET_SEARCH, targetBytes: 100_000, ...overrides };
+	}
+
+	// Model encoder: size grows with quality and with scale² (like real pixels).
+	function modelEncoder(baseBytes: number) {
+		const calls: Array<{ quality: number; scale: number }> = [];
+		const encode = async (quality: number, scale: number): Promise<number> => {
+			calls.push({ quality, scale });
+			return baseBytes * scale * scale * quality;
+		};
+		return { encode, calls };
+	}
+
+	it('stays at full scale and tunes quality when the budget allows', async () => {
+		const { encode } = modelEncoder(200_000);
+		const result = await searchEncodeToTarget(encode, config({ targetBytes: 120_000 }));
+		expect(result.scale).toBe(1);
+		expect(result.underTarget).toBe(true);
+		expect(result.bytes).toBeLessThanOrEqual(120_000);
+		// Highest quality that fits: 120000/200000 = 0.6, so best ≤ 0.6.
+		expect(result.quality).toBeLessThanOrEqual(0.6 + 1e-9);
+		expect(result.quality).toBeGreaterThan(0.3);
+	});
+
+	it('downscales when even the lowest quality at full scale is too big', async () => {
+		// At scale 1, min quality (0.3) → 300000 > target; must shrink.
+		const { encode } = modelEncoder(1_000_000);
+		const result = await searchEncodeToTarget(encode, config({ targetBytes: 100_000 }));
+		expect(result.scale).toBeLessThan(1);
+		expect(result.underTarget).toBe(true);
+		expect(result.bytes).toBeLessThanOrEqual(100_000);
+	});
+
+	it('reports best effort when nothing fits the budget', async () => {
+		const { encode } = modelEncoder(100_000_000);
+		const result = await searchEncodeToTarget(encode, config({ targetBytes: 1000 }));
+		expect(result.underTarget).toBe(false);
+		expect(result.scale).toBe(DEFAULT_TARGET_SEARCH.scales.at(-1));
+		expect(result.quality).toBe(DEFAULT_TARGET_SEARCH.minQuality);
+	});
+
+	it('picks the largest scale that can satisfy the budget', async () => {
+		// base 260000: scale 1 min = 78000 ≤ 100000, so scale 1 already works.
+		const { encode, calls } = modelEncoder(260_000);
+		const result = await searchEncodeToTarget(encode, config({ targetBytes: 100_000 }));
+		expect(result.scale).toBe(1);
+		// Only the winning scale is probed (no wasted downscale attempts).
+		expect(calls.every((c) => c.scale === 1)).toBe(true);
+	});
+
+	it('falls back to a single scale when the list is empty', async () => {
+		const { encode } = modelEncoder(50_000);
+		const result = await searchEncodeToTarget(encode, config({ scales: [], targetBytes: 100_000 }));
+		expect(result.scale).toBe(1);
+		expect(result.underTarget).toBe(true);
 	});
 });
 
