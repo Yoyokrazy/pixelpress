@@ -32,12 +32,19 @@ import {
 	type SplitOptions,
 } from '../lib/pdfTools';
 import { describeError, renderPdfThumbnails } from '../lib/pdfToImages';
+import {
+	compressPdf,
+	compressionSavings,
+	COMPRESS_DPI_PRESETS,
+	DEFAULT_COMPRESS_OPTIONS,
+	type CompressPdfOptions,
+} from '../lib/compressPdf';
 import { downloadAsZip, downloadBlob } from '../lib/download';
 import { commonPrefix, formatBytes, stripExtension } from '../lib/format';
 import { DropZone } from './DropZone';
 import { ProgressBar } from './ProgressBar';
 import { Button, IconButton } from './Button';
-import { NumberField, SegmentedControl, Section, SelectField, TextField } from './fields';
+import { NumberField, SegmentedControl, Section, SelectField, SliderField, TextField } from './fields';
 import {
 	IconDownload,
 	IconFilePdf,
@@ -63,7 +70,7 @@ interface EditablePage extends PageEdit {
 	thumbnailUrl?: string;
 }
 
-type ToolMode = 'merge' | 'split' | 'organise';
+type ToolMode = 'merge' | 'split' | 'organise' | 'compress';
 
 interface PdfToolboxViewProps {
 	notify: (kind: 'success' | 'error' | 'info' | 'warning', message: string, detail?: string) => void;
@@ -76,10 +83,12 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 	const [docs, setDocs] = useState<ToolboxDoc[]>([]);
 	const [pages, setPages] = useState<EditablePage[]>([]);
 	const [split, setSplit] = useState<SplitOptions>(DEFAULT_SPLIT);
+	const [compress, setCompress] = useState<CompressPdfOptions>(DEFAULT_COMPRESS_OPTIONS);
 	const [outputName, setOutputName] = useState('');
 	const [progress, setProgress] = useState<ProgressState>(IDLE_PROGRESS);
 	const [busy, setBusy] = useState(false);
 	const pagesRef = useRef<EditablePage[]>([]);
+	const abortRef = useRef<AbortController | null>(null);
 
 	pagesRef.current = pages;
 
@@ -359,6 +368,43 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 		}
 	}, [activeDoc, notify, outputName, pages, suggestedName]);
 
+	const runCompress = useCallback(async () => {
+		if (!activeDoc) {
+			notify('warning', 'Add a PDF to compress');
+			return;
+		}
+		const controller = new AbortController();
+		abortRef.current = controller;
+		setBusy(true);
+		setProgress({ active: true, current: 0, total: activeDoc.pageCount, label: 'Compressing' });
+		const originalBytes = activeDoc.size;
+		try {
+			const result = await compressPdf(
+				activeDoc.file,
+				compress,
+				(current, total, label) => setProgress({ active: true, current, total, label }),
+				controller.signal,
+			);
+			downloadBlob(result.blob, result.fileName);
+			const saved = compressionSavings(originalBytes, result.byteLength);
+			notify(
+				'success',
+				`Compressed ${result.fileName}`,
+				`${formatBytes(originalBytes)} → ${formatBytes(result.byteLength)} · ${Math.round(saved * 100)}% smaller`,
+			);
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') {
+				notify('info', 'Compression cancelled');
+			} else {
+				notify('error', 'Could not compress the PDF', describeError(error));
+			}
+		} finally {
+			abortRef.current = null;
+			setBusy(false);
+			setProgress(IDLE_PROGRESS);
+		}
+	}, [activeDoc, compress, notify]);
+
 	const switchMode = useCallback(
 		(next: ToolMode) => {
 			setMode(next);
@@ -443,7 +489,10 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 					</div>
 				) : null}
 
-				<ProgressBar progress={progress} />
+				<ProgressBar
+					progress={progress}
+					onCancel={busy && mode === 'compress' ? () => abortRef.current?.abort() : undefined}
+				/>
 
 				{mode === 'organise' && pages.length > 0 ? (
 					<div className="card p-4">
@@ -495,6 +544,7 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 							{ value: 'merge', label: 'Merge', title: 'Combine several PDFs into one' },
 							{ value: 'split', label: 'Split', title: 'Break one PDF into several' },
 							{ value: 'organise', label: 'Organise', title: 'Reorder, rotate and delete pages' },
+							{ value: 'compress', label: 'Compress', title: 'Shrink an image-heavy PDF' },
 						]}
 						onChange={switchMode}
 					/>
@@ -539,6 +589,33 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 									{splitPreview.description ? ` · ${splitPreview.description}${splitPreview.count > 4 ? ', …' : ''}` : ''}
 								</p>
 							) : null}
+						</div>
+					</Section>
+				) : mode === 'compress' ? (
+					<Section title="Compression" description="Rasterises each page to shrink image-heavy PDFs.">
+						<div className="flex flex-col gap-3">
+							<SelectField
+								label="Resolution"
+								value={compress.dpi}
+								options={COMPRESS_DPI_PRESETS.map((dpi) => ({
+									value: dpi,
+									label: `${dpi} DPI${dpi <= 96 ? ' (screen)' : dpi >= 300 ? ' (print)' : ''}`,
+								}))}
+								onChange={(dpi) => setCompress((current) => ({ ...current, dpi }))}
+							/>
+							<SliderField
+								label="JPEG quality"
+								min={0.3}
+								max={0.95}
+								step={0.05}
+								value={compress.quality}
+								format={(value) => `${Math.round(value * 100)}%`}
+								onChange={(quality) => setCompress((current) => ({ ...current, quality }))}
+							/>
+							<p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+								Each page is flattened to a JPEG image, so text is no longer selectable. Best for
+								scans and image-heavy documents.
+							</p>
 						</div>
 					</Section>
 				) : (
@@ -587,6 +664,18 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 						>
 							<IconDownload className="size-4" />
 							{busy ? 'Saving…' : `Save ${keptPages.length} page${keptPages.length === 1 ? '' : 's'}`}
+						</Button>
+					) : null}
+					{mode === 'compress' ? (
+						<Button
+							variant="primary"
+							size="lg"
+							className="w-full"
+							disabled={!activeDoc || busy}
+							onClick={runCompress}
+						>
+							<IconDownload className="size-4" />
+							{busy ? 'Compressing…' : 'Compress & download'}
 						</Button>
 					) : null}
 				</div>
