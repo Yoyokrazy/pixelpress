@@ -44,6 +44,9 @@
   },
   "description": "Convert images to PDF and PDF pages to images, entirely in the browser",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Yoyokrazy/pixelpress.git"

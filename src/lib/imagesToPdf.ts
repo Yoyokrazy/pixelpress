@@ -90,6 +90,9 @@ export async function buildPdfFromImages(
 		}
 
 		const first = embedded[0];
+		if (!first) {
+			continue;
+		}
 		const aspect = first.width / first.height;
 		const explicitSize = resolvePageSize(
 			options.pageSizeId,
@@ -126,6 +129,9 @@ export async function buildPdfFromImages(
 
 		embedded.forEach((entry, index) => {
 			const cell = cells[index] ?? cells[cells.length - 1];
+			if (!cell) {
+				return;
+			}
 			const placement = fitRect(entry.width, entry.height, cell.width, cell.height, options.fit);
 			// `cover` overflows the cell, so clip it back to the cell bounds.
 			const needsClip = options.fit === 'cover';

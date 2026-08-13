@@ -41,8 +41,8 @@ describe('inspectPdf', () => {
 	it('reports the page count and sizes', async () => {
 		const info = await inspectPdf(threePage);
 		expect(info.pageCount).toBe(3);
-		expect(Math.round(info.sizes[0].width)).toBe(100);
-		expect(Math.round(info.sizes[2].height)).toBe(220);
+		expect(Math.round(info.sizes[0]!.width)).toBe(100);
+		expect(Math.round(info.sizes[2]!.height)).toBe(220);
 	});
 });
 
@@ -109,7 +109,7 @@ describe('splitPdf', () => {
 		const outputs = await splitPdf(threePage, { mode: 'each', chunkSize: 1, ranges: '' });
 		expect(outputs).toHaveLength(3);
 		expect(outputs.every((output) => output.pageCount === 1)).toBe(true);
-		expect(await pageSizes(outputs[2].blob)).toEqual([{ width: 120, height: 220 }]);
+		expect(await pageSizes(outputs[2]!.blob)).toEqual([{ width: 120, height: 220 }]);
 	});
 
 	it('splits into fixed size chunks', async () => {
@@ -124,8 +124,8 @@ describe('splitPdf', () => {
 
 	it('names outputs with their page span', async () => {
 		const outputs = await splitPdf(threePage, { mode: 'every', chunkSize: 2, ranges: '' });
-		expect(outputs[0].fileName).toMatch(/p1-2\.pdf$/);
-		expect(outputs[1].fileName).toMatch(/p3\.pdf$/);
+		expect(outputs[0]!.fileName).toMatch(/p1-2\.pdf$/);
+		expect(outputs[1]!.fileName).toMatch(/p3\.pdf$/);
 	});
 
 	it('throws when the settings select nothing', async () => {

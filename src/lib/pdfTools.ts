@@ -177,7 +177,7 @@ export async function editPdfPages(
 	);
 	copied.forEach((page, index) => {
 		const edit = kept[index];
-		if (edit.rotation !== 0) {
+		if (edit && edit.rotation !== 0) {
 			// pdf-lib rotations are absolute, so fold the existing angle in.
 			const current = page.getRotation().angle;
 			page.setRotation(degrees((current + edit.rotation) % 360));

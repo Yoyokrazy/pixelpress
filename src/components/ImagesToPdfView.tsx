@@ -187,11 +187,12 @@ export function ImagesToPdfView({ notify }: ImagesToPdfViewProps) {
 	}, []);
 
 	const suggestedName = useMemo(() => {
-		if (items.length === 0) {
+		const only = items[0];
+		if (!only) {
 			return 'pixelpress.pdf';
 		}
 		if (items.length === 1) {
-			return withExtension(stripExtension(items[0].name), '.pdf');
+			return withExtension(stripExtension(only.name), '.pdf');
 		}
 		const shared = commonPrefix(items.map((item) => stripExtension(item.name)));
 		return withExtension(shared.length >= 3 ? shared : 'pixelpress', '.pdf');

@@ -60,7 +60,9 @@ export function parsePageRange(expression: string, pageCount: number): PageRange
 
 		const rangeMatch = /^(\d*)\s*[-–—:]\s*(\d*)$/.exec(lower);
 		if (rangeMatch) {
-			const [, rawStart, rawEnd] = rangeMatch;
+			// The `\d*` groups always capture a (possibly empty) string on a match.
+			const rawStart = rangeMatch[1] ?? '';
+			const rawEnd = rangeMatch[2] ?? '';
 			if (rawStart === '' && rawEnd === '') {
 				errors.push(`"${token}" is not a valid range`);
 				continue;
@@ -101,22 +103,23 @@ function allPages(pageCount: number): number[] {
 
 /** Render a list of page numbers back into a compact expression like "1-3, 7". */
 export function formatPageRange(pages: number[]): string {
-	if (pages.length === 0) {
+	const sorted = [...new Set(pages)].sort((a, b) => a - b);
+	const first = sorted[0];
+	if (first === undefined) {
 		return '';
 	}
-	const sorted = [...new Set(pages)].sort((a, b) => a - b);
 	const parts: string[] = [];
-	let start = sorted[0];
-	let previous = sorted[0];
+	let start = first;
+	let previous = first;
 
-	for (let index = 1; index <= sorted.length; index += 1) {
-		const current = sorted[index];
+	for (const current of sorted.slice(1)) {
 		if (current !== previous + 1) {
 			parts.push(start === previous ? `${start}` : `${start}-${previous}`);
 			start = current;
 		}
 		previous = current;
 	}
+	parts.push(start === previous ? `${start}` : `${start}-${previous}`);
 
 	return parts.join(', ');
 }

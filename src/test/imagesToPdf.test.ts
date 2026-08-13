@@ -62,7 +62,7 @@ function crc32(buffer: Buffer): number {
 	}
 	let crc = 0xffffffff;
 	for (const byte of buffer) {
-		crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+		crc = crcTable[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
 	}
 	return crc ^ 0xffffffff;
 }
@@ -148,7 +148,7 @@ describe('buildPdfFromImages', () => {
 		const margin = 10;
 		const result = await buildPdfFromImages([landscape], options({ marginMm: margin }));
 		const expected = Math.round(40 + mmToPoints(margin) * 2);
-		expect((await pagesOf(result.blob))[0].width).toBe(expected);
+		expect((await pagesOf(result.blob))[0]!.width).toBe(expected);
 	});
 
 	it('uses a fixed page size when a preset is chosen', async () => {
@@ -162,8 +162,8 @@ describe('buildPdfFromImages', () => {
 	it('follows the image aspect ratio in auto orientation', async () => {
 		const wide = await buildPdfFromImages([landscape], options({ pageSizeId: 'a4' }));
 		const tall = await buildPdfFromImages([portrait], options({ pageSizeId: 'a4' }));
-		expect((await pagesOf(wide.blob))[0].width).toBeGreaterThan((await pagesOf(wide.blob))[0].height);
-		expect((await pagesOf(tall.blob))[0].height).toBeGreaterThan((await pagesOf(tall.blob))[0].width);
+		expect((await pagesOf(wide.blob))[0]!.width).toBeGreaterThan((await pagesOf(wide.blob))[0]!.height);
+		expect((await pagesOf(tall.blob))[0]!.height).toBeGreaterThan((await pagesOf(tall.blob))[0]!.width);
 	});
 
 	it('honours a custom page size in millimetres', async () => {

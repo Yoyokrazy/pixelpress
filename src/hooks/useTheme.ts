@@ -22,14 +22,10 @@ function prefersDark(): boolean {
 
 export function useTheme() {
 	const [theme, setThemeState] = useState<ThemeChoice>(readStoredTheme);
-	const [resolved, setResolved] = useState<'light' | 'dark'>(() =>
-		readStoredTheme() === 'system' ? (prefersDark() ? 'dark' : 'light') : (readStoredTheme() as 'light' | 'dark'),
-	);
 
 	useEffect(() => {
 		const apply = () => {
 			const next = theme === 'system' ? (prefersDark() ? 'dark' : 'light') : theme;
-			setResolved(next);
 			document.documentElement.classList.toggle('dark', next === 'dark');
 		};
 
@@ -56,5 +52,5 @@ export function useTheme() {
 		setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light');
 	}, [setTheme, theme]);
 
-	return { theme, resolvedTheme: resolved, setTheme, cycleTheme };
+	return { theme, setTheme, cycleTheme };
 }
