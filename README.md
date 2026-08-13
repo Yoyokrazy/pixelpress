@@ -53,6 +53,8 @@ works offline and your documents never touch a server.
 - **Split** a PDF by single page, fixed-size chunks, or custom ranges (`1-3; 4-6; 7-`)
 - **Organise** pages: drag to reorder, rotate individually, and mark pages for removal,
   all with live page thumbnails
+- **Compress** an image-heavy or scanned PDF by rasterising each page at a chosen DPI and
+  JPEG quality (flattens pages to images, so text becomes non-selectable)
 
 ### Throughout
 
