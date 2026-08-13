@@ -233,8 +233,11 @@ export function PdfToImagesView({ notify }: PdfToImagesViewProps) {
 			return;
 		}
 		if (selectedPages.length === 1) {
-			downloadBlob(selectedPages[0].blob, selectedPages[0].fileName);
-			notify('success', `Saved ${selectedPages[0].fileName}`);
+			const only = selectedPages[0];
+			if (only) {
+				downloadBlob(only.blob, only.fileName);
+				notify('success', `Saved ${only.fileName}`);
+			}
 			return;
 		}
 

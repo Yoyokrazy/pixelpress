@@ -107,7 +107,7 @@ export function dedupeFileName(name: string, taken: Set<string>): string {
 /** Parse `#rgb` / `#rrggbb` into normalised 0-1 channels. */
 export function parseHexColor(hex: string): { r: number; g: number; b: number } {
 	const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
-	if (!match) {
+	if (!match || match[1] === undefined) {
 		return { r: 1, g: 1, b: 1 };
 	}
 	let value = match[1];
@@ -138,10 +138,11 @@ export function formatDuration(ms: number): string {
  * `scan-001, scan-002` yields `scan` rather than `scan-00`.
  */
 export function commonPrefix(names: readonly string[]): string {
-	if (names.length === 0) {
+	const first = names[0];
+	if (first === undefined) {
 		return '';
 	}
-	let prefix = names[0];
+	let prefix = first;
 	for (const name of names.slice(1)) {
 		let index = 0;
 		while (index < prefix.length && index < name.length && prefix[index] === name[index]) {

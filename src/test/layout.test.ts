@@ -91,18 +91,18 @@ describe('gridCells', () => {
 
 	it('fills the usable area exactly with no gutter', () => {
 		const cells = gridCells(600, 800, 0, 4);
-		expect(cells[0].width).toBe(300);
-		expect(cells[0].height).toBe(400);
+		expect(cells[0]!.width).toBe(300);
+		expect(cells[0]!.height).toBe(400);
 	});
 
 	it('lays cells out in reading order using PDF coordinates', () => {
 		const cells = gridCells(600, 800, 0, 4);
 		// First cell is the top-left, so it has the highest y in PDF space.
-		expect(cells[0].x).toBe(0);
-		expect(cells[0].y).toBe(400);
-		expect(cells[1].x).toBe(300);
-		expect(cells[1].y).toBe(400);
-		expect(cells[2].y).toBe(0);
+		expect(cells[0]!.x).toBe(0);
+		expect(cells[0]!.y).toBe(400);
+		expect(cells[1]!.x).toBe(300);
+		expect(cells[1]!.y).toBe(400);
+		expect(cells[2]!.y).toBe(0);
 	});
 
 	it('keeps every cell inside the page bounds', () => {

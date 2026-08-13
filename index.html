@@ -17,7 +17,10 @@
 		/>
 		<meta property="og:type" content="website" />
 		<script>
-			// Apply the saved theme before first paint to avoid a flash of the wrong colours.
+			// Apply the saved theme before first paint to avoid a flash of the wrong
+			// colours. This must run inline (pre-hydration), so it deliberately
+			// duplicates the resolution logic in src/hooks/useTheme.ts — keep the two
+			// in sync if the storage key or theme rules change.
 			(() => {
 				try {
 					const stored = localStorage.getItem('pixelpress:theme');

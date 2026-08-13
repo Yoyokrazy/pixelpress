@@ -254,14 +254,15 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 	}, []);
 
 	const suggestedName = useMemo(() => {
-		if (docs.length === 0) {
+		const firstDoc = docs[0];
+		if (!firstDoc) {
 			return mode === 'merge' ? 'merged.pdf' : 'output.pdf';
 		}
 		if (mode === 'merge') {
 			const shared = commonPrefix(docs.map((doc) => stripExtension(doc.name)));
 			return `${shared.length >= 3 ? shared : 'merged'}.pdf`;
 		}
-		return `${stripExtension(docs[0].name)}-edited.pdf`;
+		return `${stripExtension(firstDoc.name)}-edited.pdf`;
 	}, [docs, mode]);
 
 	const splitPreview = useMemo(() => {
@@ -316,7 +317,7 @@ export function PdfToolboxView({ notify }: PdfToolboxViewProps) {
 			const outputs = await splitPdf(activeDoc.file, split, (current, total, label) =>
 				setProgress({ active: true, current, total, label }),
 			);
-			if (outputs.length === 1) {
+			if (outputs.length === 1 && outputs[0]) {
 				downloadBlob(outputs[0].blob, outputs[0].fileName);
 			} else {
 				await downloadAsZip(

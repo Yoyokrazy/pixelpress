@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ImagesToPdfView } from './components/ImagesToPdfView';
-import { PdfToImagesView } from './components/PdfToImagesView';
-import { PdfToolboxView } from './components/PdfToolboxView';
 import { ResizeImagesView } from './components/ResizeImagesView';
 import { Toaster } from './components/Toaster';
 import { IconButton } from './components/Button';
@@ -13,10 +11,23 @@ import {
 	IconMonitor,
 	IconMoon,
 	IconResize,
+	IconSpinner,
 	IconSun,
 } from './components/icons';
 import { useTheme } from './hooks/useTheme';
 import { useToasts, type ToastKind } from './hooks/useToasts';
+
+// The PDF → Images and Toolbox views pull in pdf.js, by far the heaviest
+// dependency. Loading them lazily keeps that chunk out of the initial download
+// for anyone who only uses Images → PDF or Resize. Each view still stays
+// mounted once visited (see `visited` below), so queued files survive tab
+// switches exactly as before.
+const PdfToImagesView = lazy(() =>
+	import('./components/PdfToImagesView').then((module) => ({ default: module.PdfToImagesView })),
+);
+const PdfToolboxView = lazy(() =>
+	import('./components/PdfToolboxView').then((module) => ({ default: module.PdfToolboxView })),
+);
 
 type TabId = 'images-to-pdf' | 'pdf-to-images' | 'resize' | 'toolbox';
 
@@ -49,17 +60,37 @@ function isTabId(value: string | null): value is TabId {
 	return value !== null && (TAB_IDS as string[]).includes(value);
 }
 
+function readInitialTab(): TabId {
+	try {
+		const stored = localStorage.getItem(TAB_STORAGE_KEY);
+		return isTabId(stored) ? stored : 'images-to-pdf';
+	} catch {
+		return 'images-to-pdf';
+	}
+}
+
+/** Placeholder shown while a lazily-loaded view's chunk is fetched. */
+function ViewLoading() {
+	return (
+		<div className="flex items-center justify-center gap-2 py-24 text-sm text-slate-500 dark:text-slate-400">
+			<IconSpinner className="size-5 animate-spin" />
+			Loading…
+		</div>
+	);
+}
+
 export default function App() {
 	const { theme, cycleTheme } = useTheme();
 	const { toasts, push, dismiss } = useToasts();
-	const [tab, setTab] = useState<TabId>(() => {
-		try {
-			const stored = localStorage.getItem(TAB_STORAGE_KEY);
-			return isTabId(stored) ? stored : 'images-to-pdf';
-		} catch {
-			return 'images-to-pdf';
-		}
-	});
+	const [tab, setTab] = useState<TabId>(readInitialTab);
+	// Tabs the user has opened at least once. Lazy views mount when their tab is
+	// first visited and stay mounted afterwards, so nothing they hold is lost.
+	const [visited, setVisited] = useState<Set<TabId>>(() => new Set([tab]));
+	const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+	useEffect(() => {
+		setVisited((current) => (current.has(tab) ? current : new Set(current).add(tab)));
+	}, [tab]);
 
 	useEffect(() => {
 		try {
@@ -68,6 +99,27 @@ export default function App() {
 			// Storage can be blocked; the tab still works for this session.
 		}
 	}, [tab]);
+
+	// Roving arrow-key navigation for the tablist, per the ARIA tabs pattern.
+	const onTabKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+		let nextIndex: number | null = null;
+		if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+			nextIndex = (index + 1) % TABS.length;
+		} else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+			nextIndex = (index - 1 + TABS.length) % TABS.length;
+		} else if (event.key === 'Home') {
+			nextIndex = 0;
+		} else if (event.key === 'End') {
+			nextIndex = TABS.length - 1;
+		}
+		const nextTab = nextIndex === null ? undefined : TABS[nextIndex];
+		if (nextIndex === null || !nextTab) {
+			return;
+		}
+		event.preventDefault();
+		setTab(nextTab.id);
+		tabRefs.current[nextIndex]?.focus();
+	}, []);
 
 	const notify = useCallback(
 		(kind: ToastKind, message: string, detail?: string) => {
@@ -89,8 +141,9 @@ export default function App() {
 				return;
 			}
 			const index = Number.parseInt(event.key, 10);
-			if (index >= 1 && index <= TABS.length) {
-				setTab(TABS[index - 1].id);
+			const target_tab = TABS[index - 1];
+			if (target_tab) {
+				setTab(target_tab.id);
 			} else if (event.key.toLowerCase() === 'd') {
 				cycleTheme();
 			}
@@ -153,12 +206,17 @@ export default function App() {
 								<button
 									key={entry.id}
 									id={`tab-${entry.id}`}
+									ref={(node) => {
+										tabRefs.current[index] = node;
+									}}
 									type="button"
 									role="tab"
 									aria-selected={active}
 									aria-controls={`tabpanel-${entry.id}`}
+									tabIndex={active ? 0 : -1}
 									title={`${entry.hint} (${index + 1})`}
 									onClick={() => setTab(entry.id)}
+									onKeyDown={(event) => onTabKeyDown(event, index)}
 									className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition sm:px-3 sm:text-sm ${
 										active
 											? 'bg-white text-brand-700 shadow-sm dark:bg-slate-950 dark:text-brand-300'
@@ -193,8 +251,10 @@ export default function App() {
 
 			<main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
 				{/*
-					All three views stay mounted so switching tabs never discards the
-					files, ordering and previews the user has already set up.
+					The two light views stay mounted so switching tabs never discards
+					the files, ordering and previews the user set up. The heavier pdf.js
+					views are code-split: each mounts on first visit and then stays
+					mounted, so its queued work survives later tab switches too.
 				*/}
 				<div
 					id="tabpanel-images-to-pdf"
@@ -210,13 +270,21 @@ export default function App() {
 					aria-labelledby="tab-pdf-to-images"
 					hidden={tab !== 'pdf-to-images'}
 				>
-					<PdfToImagesView notify={notify} />
+					{visited.has('pdf-to-images') ? (
+						<Suspense fallback={<ViewLoading />}>
+							<PdfToImagesView notify={notify} />
+						</Suspense>
+					) : null}
 				</div>
 				<div id="tabpanel-resize" role="tabpanel" aria-labelledby="tab-resize" hidden={tab !== 'resize'}>
 					<ResizeImagesView notify={notify} />
 				</div>
 				<div id="tabpanel-toolbox" role="tabpanel" aria-labelledby="tab-toolbox" hidden={tab !== 'toolbox'}>
-					<PdfToolboxView notify={notify} />
+					{visited.has('toolbox') ? (
+						<Suspense fallback={<ViewLoading />}>
+							<PdfToolboxView notify={notify} />
+						</Suspense>
+					) : null}
 				</div>
 			</main>
 

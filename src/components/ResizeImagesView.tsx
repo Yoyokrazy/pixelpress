@@ -42,6 +42,13 @@ interface PreviewState {
 /** Delay before re-encoding previews so dragging a slider does not thrash the canvas. */
 const PREVIEW_DEBOUNCE_MS = 200;
 
+/**
+ * How many previews to re-encode at once. Canvas encoding is CPU-bound, so a
+ * small pool keeps a large queue responsive without oversubscribing the main
+ * thread (a strict one-at-a-time loop stalls; unbounded parallelism thrashes).
+ */
+const PREVIEW_CONCURRENCY = 3;
+
 /** Quick-scale buttons, including a 100% "reset to original" option. */
 const PRESET_PERCENTAGES: number[] = [...RESIZE_PERCENTAGE_PRESETS, 100];
 
@@ -146,11 +153,10 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 		});
 
 		let cancelled = false;
-		const timer = setTimeout(async () => {
-			for (const item of stale) {
-				if (cancelled) {
-					return;
-				}
+		const timer = setTimeout(() => {
+			const queue = [...stale];
+
+			const encodeOne = async (item: ImageItem): Promise<void> => {
 				try {
 					const result = await resizeImageFile(item, options);
 					if (cancelled) {
@@ -172,7 +178,22 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 					}
 					setPreviews((current) => ({ ...current, [item.id]: { status: 'error' } }));
 				}
-			}
+			};
+
+			// Each worker pulls the next item off the shared queue until it drains,
+			// capping concurrency at PREVIEW_CONCURRENCY regardless of queue length.
+			const worker = async (): Promise<void> => {
+				while (!cancelled) {
+					const next = queue.shift();
+					if (!next) {
+						return;
+					}
+					await encodeOne(next);
+				}
+			};
+
+			const pool = Math.min(PREVIEW_CONCURRENCY, queue.length);
+			void Promise.all(Array.from({ length: pool }, () => worker()));
 		}, PREVIEW_DEBOUNCE_MS);
 
 		return () => {
@@ -239,8 +260,9 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 			const originalBytes = items.reduce((sum, item) => sum + item.size, 0);
 			const saved = byteSavings(originalBytes, outputBytes);
 
-			if (results.length === 1) {
-				downloadBlob(results[0].blob, results[0].fileName);
+			const single = results.length === 1 ? results[0] : undefined;
+			if (single) {
+				downloadBlob(single.blob, single.fileName);
 			} else {
 				await downloadAsZip(
 					results.map((result) => ({ fileName: result.fileName, blob: result.blob })),
@@ -250,7 +272,7 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 
 			notify(
 				'success',
-				results.length === 1 ? `Saved ${results[0].fileName}` : `Saved ${results.length} images`,
+				single ? `Saved ${single.fileName}` : `Saved ${results.length} images`,
 				`${formatBytes(originalBytes)} → ${formatBytes(outputBytes)} · ${formatSavings(saved)} · ${Math.round(
 					performance.now() - startedAt,
 				)} ms`,
