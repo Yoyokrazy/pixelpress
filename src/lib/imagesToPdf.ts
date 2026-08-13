@@ -39,6 +39,7 @@ export const DEFAULT_PDF_OPTIONS: PdfBuildOptions = {
 	jpegQuality: 0.85,
 	maxDimension: 0,
 	imagesPerPage: 1,
+	stripMetadata: false,
 	title: '',
 	author: '',
 	subject: '',
@@ -79,6 +80,7 @@ export async function buildPdfFromImages(
 				jpegQuality: options.jpegQuality,
 				maxDimension: options.maxDimension,
 				backgroundColor: options.backgroundColor,
+				stripMetadata: options.stripMetadata,
 			});
 			const image =
 				raster.type === 'image/png'

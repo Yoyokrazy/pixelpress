@@ -73,6 +73,8 @@ export interface PdfBuildOptions {
 	maxDimension: number;
 	/** Images per page in an N-up grid layout. */
 	imagesPerPage: 1 | 2 | 4 | 6 | 9;
+	/** Losslessly remove EXIF/metadata from images embedded without re-encoding. */
+	stripMetadata: boolean;
 	title: string;
 	author: string;
 	subject: string;
