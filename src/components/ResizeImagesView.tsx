@@ -295,7 +295,10 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 	}, [items, notify, options, optionsSignature, zipName]);
 
 	const overallSaved = totals.original > 0 ? byteSavings(totals.original, totals.output) : 0;
-	const qualityDisabled = options.format === 'png';
+	const isTargetMode = options.mode === 'targetSize';
+	// In target-size mode the encoder search owns the quality knob; PNG has no
+	// quality knob at all.
+	const qualityDisabled = isTargetMode || options.format === 'png';
 
 	return (
 		<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -375,6 +378,7 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 							options={[
 								{ value: 'percentage', label: 'Percentage', title: 'Scale by a percentage' },
 								{ value: 'longestEdge', label: 'Max size', title: 'Cap the longest edge' },
+								{ value: 'targetSize', label: 'Target KB', title: 'Aim for a file size' },
 							]}
 							onChange={(mode) => updateOptions({ mode })}
 						/>
@@ -399,7 +403,7 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 									onChange={(percentage) => updateOptions({ percentage })}
 								/>
 							</>
-						) : (
+						) : options.mode === 'longestEdge' ? (
 							<NumberField
 								label="Longest edge"
 								suffix="px"
@@ -409,6 +413,17 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 								value={options.longestEdge}
 								hint="Images are only ever scaled down, never enlarged."
 								onChange={(longestEdge) => updateOptions({ longestEdge: Math.max(16, longestEdge) })}
+							/>
+						) : (
+							<NumberField
+								label="Target file size"
+								suffix="KB"
+								min={5}
+								max={100000}
+								step={50}
+								value={options.targetSizeKb}
+								hint="Quality (then resolution) is tuned to fit. Output is JPEG or WebP."
+								onChange={(targetSizeKb) => updateOptions({ targetSizeKb: Math.max(5, targetSizeKb) })}
 							/>
 						)}
 					</div>
@@ -439,7 +454,9 @@ export function ResizeImagesView({ notify }: ResizeImagesViewProps) {
 						/>
 						{qualityDisabled ? (
 							<p className="text-xs text-slate-500 dark:text-slate-400">
-								PNG is lossless, so quality only applies to JPEG and WebP.
+								{isTargetMode
+									? 'Quality is chosen automatically to hit the target size.'
+									: 'PNG is lossless, so quality only applies to JPEG and WebP.'}
 							</p>
 						) : null}
 						<ColorField
@@ -496,6 +513,10 @@ function ResizeCard({ item, preview, target, onRemove }: ResizeCardProps) {
 	const ready = preview?.status === 'ready';
 	const saved =
 		ready && preview.bytes !== undefined ? byteSavings(item.size, preview.bytes) : undefined;
+	// Prefer the dimensions actually produced by the encoder (they are the only
+	// truth in target-size mode, where the scale is chosen during encoding).
+	const shownWidth = ready && preview.width !== undefined ? preview.width : target.width;
+	const shownHeight = ready && preview.height !== undefined ? preview.height : target.height;
 
 	return (
 		<li className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-brand-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-700">
@@ -522,7 +543,7 @@ function ResizeCard({ item, preview, target, onRemove }: ResizeCardProps) {
 					{item.name}
 				</p>
 				<p className="text-[11px] text-slate-500 tabular-nums dark:text-slate-400">
-					{item.width} × {item.height} → {target.width} × {target.height}
+					{item.width} × {item.height} → {shownWidth} × {shownHeight}
 				</p>
 				<div className="mt-auto flex items-center justify-between gap-1 pt-1 text-[11px] tabular-nums">
 					<span className="text-slate-500 dark:text-slate-400">

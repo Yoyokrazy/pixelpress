@@ -41,7 +41,7 @@ works offline and your documents never touch a server.
 ### Resize
 
 - Drop **PNG, JPEG or WebP** images to scale them down to a smaller file
-- Resize by **percentage** (with 25 / 50 / 75 / 100% presets) or by capping the **longest edge**
+- Resize by **percentage** (with 25 / 50 / 75 / 100% presets), by capping the **longest edge**, or to a **target file size** (quality, then resolution, is tuned automatically to fit)
 - Images are only ever **scaled down**, never enlarged
 - Re-encode as **JPEG, PNG or WebP**, or keep the original format, with a **quality** slider
 - Live **output-size preview** on every tile — new dimensions, new file size and the percentage saved
