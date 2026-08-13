@@ -180,6 +180,71 @@ describe('stripJpegMetadata', () => {
 	});
 });
 
+describe('stripJpegMetadata — edge cases', () => {
+	it('stops and keeps the file intact when entropy-coded bytes appear', () => {
+		// Build a JPEG where the byte immediately after a segment's end is NOT 0xFF.
+		// APP1 marker (2 bytes) + length=10 (2 bytes) + 8 bytes payload = segmentEnd at offset 14.
+		// Byte at offset 14 is 0xAB, which is not 0xFF — triggers line-53 break.
+		const jpeg = new Uint8Array([
+			0xff, 0xd8, // SOI [0-1]
+			0xff, 0xe1, 0x00, 0x0a, // APP1 marker + length=10 [2-5]
+			0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00, // 8-byte payload [6-13]
+			0xab, // non-0xFF: entropy-coded data signals end of segments [14]
+			0xff, 0xd9, // EOI [15-16]
+		]);
+		// APP1 is a strip-marker so removedAny=true; after stripping the output
+		// must be smaller but must not throw.
+		const stripped = stripJpegMetadata(jpeg);
+		expect(hasMarker(stripped, 0xe1)).toBe(false);
+		expect(stripped.length).toBeLessThan(jpeg.length);
+	});
+
+	it('steps over standalone single-byte markers (0xFF01 and restart markers)', () => {
+		// Restart markers (0xFFD0–0xFFD7) and 0xFF01 have no length field.
+		// Inserting one between meaningful segments should not corrupt the parser.
+		const rst0 = [0xff, 0xd0]; // RST0 (no length)
+		const jpeg = new Uint8Array([
+			0xff, 0xd8, // SOI
+			...APP0_JFIF,
+			...rst0,
+			...COM,
+			0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS
+			0xff, 0xd9, // EOI
+		]);
+		const stripped = stripJpegMetadata(jpeg);
+		expect(hasMarker(stripped, 0xfe)).toBe(false); // COM stripped
+		expect(hasMarker(stripped, 0xe0)).toBe(true);  // APP0 kept
+	});
+
+	it('stops without crashing when a segment header is truncated', () => {
+		// Only 2 bytes remain after the marker — not enough to read the length.
+		const jpeg = new Uint8Array([
+			0xff, 0xd8, // SOI
+			0xff, 0xe0, // APP0 marker — but the file ends here (no length)
+		]);
+		// Must return the original bytes unchanged (nothing was removed).
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+
+	it('returns the original bytes when a segment length is malformed', () => {
+		// Length field claims 1 (< 2 minimum) — malformed; bail out.
+		const jpeg = new Uint8Array([
+			0xff, 0xd8, // SOI
+			0xff, 0xe1, 0x00, 0x01, // APP1 with length=1 (< 2; illegal)
+		]);
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+
+	it('returns the original bytes when a segment extends beyond the file', () => {
+		// Length field claims 100 bytes but the file ends earlier.
+		const jpeg = new Uint8Array([
+			0xff, 0xd8, // SOI
+			0xff, 0xe1, 0x00, 0x64, 0x45, 0x78, // APP1 claiming length=100
+		]);
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+});
+
 describe('stripPngMetadata', () => {
 	it('removes text, exif and time chunks', () => {
 		const png = buildPng([
@@ -215,6 +280,22 @@ describe('stripPngMetadata', () => {
 	it('leaves non-PNG input untouched', () => {
 		const notPng = new Uint8Array([0x89, 0x50, 0x00]);
 		expect(stripPngMetadata(notPng)).toBe(notPng);
+	});
+
+	it('returns the original bytes when a chunk extends beyond the file', () => {
+		// Build a PNG that starts with signature + IHDR. Manually append a tEXt
+		// chunk header claiming length=100 but provide only 2 bytes of payload.
+		// stripPngMetadata must detect chunkEnd > bytes.length and bail.
+		const sig = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		const ihdr = new Uint8Array(13);
+		const ihdrDv = new DataView(ihdr.buffer);
+		ihdrDv.setUint32(0, 1); ihdrDv.setUint32(4, 1);
+		ihdr[8] = 8; ihdr[9] = 2;
+		const ihdrChunk = new Uint8Array([0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, ...ihdr, 0, 0, 0, 0]);
+		// tEXt header claiming length=100, but only 2 data bytes follow.
+		const fakeTExt = new Uint8Array([0, 0, 0, 100, 0x74, 0x45, 0x58, 0x74, 0x61, 0x62]);
+		const truncated = new Uint8Array([...sig, ...ihdrChunk, ...fakeTExt]);
+		expect(stripPngMetadata(truncated)).toBe(truncated);
 	});
 
 	it('produces a PNG pdf-lib can still embed', async () => {
