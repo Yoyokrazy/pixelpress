@@ -83,10 +83,10 @@ export default defineConfig({
 			// gap is mostly download.ts and pdfToImages.ts, which need canvas
 			// and the pdf.js worker and are verified in a real browser instead.
 			thresholds: {
-				statements: 67,
-				branches: 74,
+				statements: 68,
+				branches: 77,
 				functions: 70,
-				lines: 67,
+				lines: 68,
 			},
 		},
 	},

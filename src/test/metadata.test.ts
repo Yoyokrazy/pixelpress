@@ -229,6 +229,75 @@ describe('stripPngMetadata', () => {
 	});
 });
 
+describe('stripJpegMetadata — defensive branches', () => {
+	it('handles a standalone restart marker (no length payload) before a strippable segment', () => {
+		// RST0 (0xFFD0) is a marker with no length field; the parser should step
+		// over it by 2 bytes and continue stripping later segments.
+		const bytes = [
+			0xff, 0xd8, // SOI
+			0xff, 0xd0, // RST0 — no payload
+			...APP1_EXIF, // should still be stripped
+			0xff, 0xda, ...u16(8), 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS
+			0x11, 0x22, 0xff, 0xd9, // scan data + EOI
+		];
+		const jpeg = new Uint8Array(bytes);
+		const stripped = stripJpegMetadata(jpeg);
+		expect(hasMarker(stripped, 0xe1)).toBe(false);
+	});
+
+	it('returns the original when a segment length field is truncated (offset+4 > length)', () => {
+		// A JPEG that ends immediately after the marker bytes — no room for the
+		// 2-byte length field — must be returned untouched to avoid an out-of-bounds read.
+		const bytes = [
+			0xff, 0xd8, // SOI
+			0xff, 0xe1, // APP1 marker, but the file ends here (no length bytes)
+		];
+		const jpeg = new Uint8Array(bytes);
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+
+	it('returns the original when a segment declares a length that exceeds the file', () => {
+		// length field says 0x00FF (255) but only 2 bytes follow — malformed.
+		const bytes = [
+			0xff, 0xd8, // SOI
+			0xff, 0xe1, // APP1 marker
+			0x00, 0xff, // length = 255, but only 2 bytes follow
+			0x00, 0x00, // padding (far short of 255)
+		];
+		const jpeg = new Uint8Array(bytes);
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+
+	it('stops cleanly when a non-0xFF byte is encountered mid-stream', () => {
+		// A valid non-strippable header followed by garbage — must not crash.
+		const bytes = [
+			0xff, 0xd8, // SOI
+			...APP0_JFIF, // valid, kept
+			0x00, 0x00, // not a marker — parser should stop and keep everything
+			0xff, 0xd9, // EOI (won't be visited by the marker loop)
+		];
+		const jpeg = new Uint8Array(bytes);
+		// No metadata markers present, so the same instance is returned.
+		expect(stripJpegMetadata(jpeg)).toBe(jpeg);
+	});
+});
+
+describe('stripPngMetadata — defensive branches', () => {
+	it('returns the original when a chunk claims a length past the end of the file', () => {
+		// Build a PNG where the tEXt chunk length field is larger than the data.
+		const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+		// Write a tEXt chunk with length=9999 but no actual data.
+		const truncated = new Uint8Array([
+			...sig,
+			...pngChunk('IHDR', new Uint8Array(13)),
+			0x00, 0x00, 0x27, 0x0f, // length = 9999
+			0x74, 0x45, 0x58, 0x74, // type = "tEXt"
+			// chunk data is missing
+		]);
+		expect(stripPngMetadata(truncated)).toBe(truncated);
+	});
+});
+
 describe('stripImageMetadata', () => {
 	it('dispatches on the magic bytes', () => {
 		const jpeg = buildJpeg([APP1_EXIF]);

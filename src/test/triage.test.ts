@@ -154,6 +154,21 @@ describe('triageIssue auto-fix eligibility', () => {
 		const { labels } = triageIssue(issue({ title: 'Crash', body: detail, labels: ['bug', 'bug'] }));
 		expect(labels).toEqual([...new Set(labels)].sort());
 	});
+
+	it('handles a null/undefined title and body gracefully', () => {
+		// The haystack construction uses `?? ''` for both title and body; verify
+		// that triageIssue does not throw when these fields are absent.
+		const result = triageIssue({ title: null as unknown as string, body: null as unknown as string, author: 'someone', labels: [] });
+		expect(result.category).toBe('unknown');
+		expect(result.autoFixEligible).toBe(false);
+	});
+
+	it('handles a null labels array gracefully', () => {
+		// `labels ?? []` should keep triageIssue working when labels is omitted.
+		const result = triageIssue({ title: 'Crash on export', body: detail, author: 'someone' });
+		expect(Array.isArray(result.labels)).toBe(true);
+		expect(result.autoFixEligible).toBe(true);
+	});
 });
 
 describe('assessAutoFix', () => {
@@ -170,6 +185,13 @@ describe('assessAutoFix', () => {
 	it('accepts a supported category with enough detail', () => {
 		const result = assessAutoFix(issue({ body: detail }), 'bug');
 		expect(result.eligible).toBe(true);
+	});
+
+	it('rejects a bug report when body is null', () => {
+		// `(issue.body ?? '').trim().length` must not throw when body is absent.
+		const result = assessAutoFix({ title: 'Crash on export', body: null as unknown as string, author: 'someone' }, 'bug');
+		expect(result.eligible).toBe(false);
+		expect(result.reason).toMatch(/detail/i);
 	});
 });
 
