@@ -12,7 +12,7 @@
 - Tests in `src/test/`, lib in `src/lib/`
 - Canvas-dependent code (download.ts, pdfToImages.ts, prepareImageForPdf, etc.) not testable in jsdom
 
-## Coverage (as of 2026-08-20)
+## Coverage (as of 2026-08-27)
 | File | Stmts | Branches |
 |------|-------|----------|
 | format.ts | 98.5% | 98.18% |
@@ -21,25 +21,28 @@
 | metadata.ts | 100% | 100% |
 | triage.mjs | 100% | 100% |
 | imagesToPdf.ts | 96.96% | 83.33% |
-| compressPdf.ts | 19.56% | 60% (canvas-dependent) |
+| compressPdf.ts | ~19% | ~60% (canvas-dependent) |
 | images.ts | 25.21% (canvas) | 39.39% |
 | resizeImages.ts | 68.18% | 77.08% (partially canvas) |
 | download.ts | 0% (canvas/DOM) | 0% |
 | pdfToImages.ts | 0% (canvas/DOM) | 0% |
-| Overall | 68.51% stmts | 77.71% branches |
+| Overall | 68.51% stmts | 76.9% branches |
 
 ## Thresholds (vite.config.ts)
-statements: 68, branches: 77, functions: 70, lines: 68
+statements: 67, branches: 74, functions: 70, lines: 67
 
 ## Work In Progress / Completed
 - 2026-08-05: PR `test-assist/images-and-exif-coverage` (merged via PR #13)
 - 2026-08-06: PR `test-assist/format-layout-coverage` (merged via PR #13)
 - 2026-08-12: PR #13 merged by Yoyokrazy — closed all format/layout/exif/pageRange/imagesToPdf/triage gaps
-- 2026-08-13: PR `test-assist/metadata-edge-cases` — attempted but no PR created (no open PRs found on 2026-08-20)
 - 2026-08-20: PR `test-assist/metadata-and-imagestopdf-gaps` created
-  - metadata.ts now 100% stmts + branches (5 new defensive JPEG tests + 1 PNG truncation test)
-  - triage.mjs now 100% branches (3 new null-input tests)
+  - metadata.ts 100% stmts + branches (5 new defensive JPEG tests + 1 PNG truncation test)
+  - triage.mjs 100% branches (3 new null-input tests)
   - Thresholds ratcheted: stmts 67→68, branches 74→77, lines 67→68
+- 2026-08-27: PR `test-assist/metadata-defensive-branches` created
+  - metadata.ts: 92.77%→100% stmts, 87.5%→100% branches
+  - 7 new tests covering lines 53, 63-64, 67, 72, 127 (malformed/truncated input guards)
+  - Overall branches 75.9%→76.9%
 
 ## Testing Backlog (prioritized)
 1. `imagesToPdf.ts` lines 96, 135 — empty-group / no-cell guards; hard to trigger without canvas (prepareImageForPdf needs canvas)
@@ -51,10 +54,11 @@ statements: 68, branches: 77, functions: 70, lines: 68
 - 2026-08-06: Task 2, Task 3, Task 7
 - 2026-08-13: Task 3 (metadata edge cases), Task 7
 - 2026-08-20: Task 3 (metadata + triage defensive branches), Task 7
+- 2026-08-27: Task 3 (metadata defensive branches), Task 7
 
 ## Monthly Activity Summary Issue
-- Issue #9 was closed (2026-08-12). Need to create new one for 2026-08.
-- Actually issue #9 is still listed for 2026-08, state=closed. Need a new one.
+- Issue for 2026-08 created on 2026-08-27 (new issue, label: testing)
+- Previous issue #9 was for July/August, closed 2026-08-12
 
 ## Checked-off items by maintainer
 (none yet)
