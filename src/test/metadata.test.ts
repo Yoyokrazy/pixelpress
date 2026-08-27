@@ -229,6 +229,81 @@ describe('stripPngMetadata', () => {
 	});
 });
 
+describe('stripJpegMetadata — defensive edge cases', () => {
+	// Line 51-53: a non-0xff byte in the marker stream ends parsing early.
+	it('stops parsing at a non-marker byte and keeps the original if nothing was removed', () => {
+		// SOI + garbage byte (not 0xff) + EOI
+		const bytes = new Uint8Array([0xff, 0xd8, 0x00, 0xff, 0xd9]);
+		expect(stripJpegMetadata(bytes)).toBe(bytes);
+	});
+
+	it('stops at a non-marker byte after already stripping a segment', () => {
+		// Hand-craft a file with a strippable segment followed by a non-0xff byte.
+		const corrupted = new Uint8Array([
+			0xff, 0xd8,                   // SOI
+			...APP1_EXIF,                  // APP1 (will be stripped)
+			0x00,                          // non-0xff byte — parser stops here
+			0x11, 0x22,                    // dummy tail
+		]);
+		// APP1 was seen => removedAny=true, so it will reassemble without APP1
+		const result = stripJpegMetadata(corrupted);
+		expect(hasMarker(result, 0xe1)).toBe(false);
+		expect(result.length).toBeLessThan(corrupted.length);
+	});
+
+	// Lines 63-64: length-less markers (RST0–RST7, TEM, standalone) just advance by 2.
+	it('skips standalone markers with no length (RST0 = 0xffd0)', () => {
+		// Insert an RST0 marker before the EXIF segment
+		const bytes = new Uint8Array([
+			0xff, 0xd8,       // SOI
+			0xff, 0xd0,       // RST0 — no length, just advance
+			...APP1_EXIF,     // APP1 EXIF (stripped)
+			0xff, 0xda, ...u16(8), 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, // SOS
+			0x11, 0x22, 0x33,
+			0xff, 0xd9,       // EOI
+		]);
+		const result = stripJpegMetadata(bytes);
+		expect(hasMarker(result, 0xe1)).toBe(false);
+	});
+
+	// Line 67: offset+4 > bytes.length — truncated file at segment boundary.
+	it('returns original if only 3 bytes remain at a non-scan marker', () => {
+		// SOI + an APP1 followed by just 3 bytes (can't read 4-byte length header).
+		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x00]); // 5 bytes total, only 3 after marker
+		expect(stripJpegMetadata(bytes)).toBe(bytes);
+	});
+
+	// Line 72: malformed segment (length < 2)
+	it('returns original on a segment with length < 2', () => {
+		const bytes = new Uint8Array([
+			0xff, 0xd8,
+			0xff, 0xe0, 0x00, 0x01, // length = 1 — invalid (minimum is 2)
+		]);
+		expect(stripJpegMetadata(bytes)).toBe(bytes);
+	});
+
+	// Line 72: segment extends past end of file
+	it('returns original when a segment overruns the end of the file', () => {
+		const bytes = new Uint8Array([
+			0xff, 0xd8,
+			0xff, 0xe0, 0x00, 0x10, // length = 16 but only a few bytes follow
+			0x4a, 0x46,             // only 2 data bytes
+		]);
+		expect(stripJpegMetadata(bytes)).toBe(bytes);
+	});
+});
+
+describe('stripPngMetadata — defensive edge cases', () => {
+	// Line 127: truncated chunk (chunkEnd > bytes.length)
+	it('returns original if the last chunk is truncated', () => {
+		// Build a valid PNG but then truncate the last IDAT chunk.
+		const valid = buildPng([['tEXt', Uint8Array.from([0x61, 0x00, 0x62])]]);
+		// Trim 4 bytes off the end so the IEND chunk is truncated.
+		const truncated = valid.slice(0, valid.length - 4);
+		expect(stripPngMetadata(truncated)).toBe(truncated);
+	});
+});
+
 describe('stripImageMetadata', () => {
 	it('dispatches on the magic bytes', () => {
 		const jpeg = buildJpeg([APP1_EXIF]);
